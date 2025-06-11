@@ -1,0 +1,110 @@
+{
+  "app": {
+    "title": "Escáner de Archivos",
+    "loading": "Cargando...",
+    "noData": "No hay datos disponibles",
+    "pleaseSelect": "Por favor, seleccione una carpeta para escanear",
+    "emptyDirectory": "Este directorio está vacío o no se puede acceder",
+    "error": "Se produjo un error: {message}",
+    "localMode": "Archivos Locales",
+    "rootMode": "Directorio Raíz"
+  },
+  "pathNavigator": {
+    "selectFolder": "Seleccionar Carpeta",
+    "upDirectory": "Directorio Superior",
+    "pleaseSelect": "Por favor seleccione una carpeta",
+    "selectDrive": "Seleccionar Unidad",
+    "startScan": "Iniciar Escaneo",
+    "scan": "Escanear",
+    "scanning": "Escaneando...",
+    "browse": "Explorar Carpetas"
+  },
+  "fileStatistics": {
+    "title": "Estadísticas de Archivos",
+    "files": "Archivos",
+    "folders": "Carpetas",
+    "totalSize": "Tamaño Total",
+    "fileTypes": {
+      "image": "Imágenes",
+      "video": "Vídeos",
+      "audio": "Audio",
+      "document": "Documentos",
+      "archive": "Archivos",
+      "code": "Código",
+      "executable": "Ejecutables",
+      "other": "Otros"
+    },
+    "noData": "No hay datos para mostrar",
+    "loading": "Procesando archivos..."
+  },
+  "fileList": {
+    "filename": "Nombre del archivo",
+    "type": "Tipo",
+    "size": "Tamaño",
+    "loading": "Cargando archivos...",
+    "empty": "Esta carpeta está vacía",
+    "actions": {
+      "delete": "Eliminar"
+    },
+    "fileTypes": {
+      "folder": "Carpeta",
+      "image": "Imagen",
+      "video": "Vídeo",
+      "audio": "Audio",
+      "document": "Documento",
+      "archive": "Archivo",
+      "code": "Archivo de Código",
+      "executable": "Ejecutable",
+      "pdf": "Documento PDF",
+      "text": "Archivo de Texto",
+      "spreadsheet": "Hoja de Cálculo",
+      "presentation": "Presentación",
+      "compressed": "Archivo Comprimido",
+      "unknown": "Archivo {ext}",
+      "other": "Otro"
+    }
+  },
+  "selectionSummary": {
+    "noSelection": "Ningún archivo seleccionado",
+    "selected": "{count} archivos seleccionados",
+    "totalSize": "Tamaño Total",
+    "typeDistribution": "Distribución por Tipo",
+    "selectedFiles": "Archivos Seleccionados",
+    "actions": {
+      "delete": "Eliminar",
+      "clear": "Limpiar"
+    }
+  },
+  "rootBrowser": {
+    "title": "Navegador de Directorio Raíz",
+    "enterPath": "Introducir ruta...",
+    "quickAccess": "Acceso rápido",
+    "loading": "Cargando directorio...",
+    "empty": "Este directorio está vacío",
+    "error": "Error al acceder al directorio: {message}",
+    "permissionDenied": "Permiso denegado para acceder a esta ubicación",
+    "selected": "{count} elementos seleccionados",
+    "delete": "Eliminar",
+    "clearSelection": "Limpiar Selección",
+    "deleteFailed": "Error al eliminar: {message}",
+    "refreshing": "Actualizando...",
+    "confirmDelete": "¿Está seguro de que desea eliminar estos elementos?"
+  },
+  "dialog": {
+    "confirm": "Confirmar",
+    "cancel": "Cancelar",
+    "ok": "Aceptar",
+    "delete": {
+      "title": "Confirmar Eliminación",
+      "message": "¿Está seguro de que desea eliminar este elemento?",
+      "messageBulk": "¿Está seguro de que desea eliminar estos {count} elementos?"
+    }
+  },
+  "sizes": {
+    "byte": "B",
+    "kilobyte": "KB",
+    "megabyte": "MB",
+    "gigabyte": "GB",
+    "terabyte": "TB"
+  }
+}

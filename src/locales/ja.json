@@ -1,0 +1,110 @@
+{
+  "app": {
+    "title": "ファイルスキャナー",
+    "loading": "読み込み中...",
+    "noData": "データがありません",
+    "pleaseSelect": "スキャンするフォルダを選択してください",
+    "emptyDirectory": "このディレクトリは空か、アクセスできません",
+    "error": "エラーが発生しました: {message}",
+    "localMode": "ローカルファイル",
+    "rootMode": "ルートディレクトリ"
+  },
+  "pathNavigator": {
+    "selectFolder": "フォルダ選択",
+    "upDirectory": "親ディレクトリ",
+    "pleaseSelect": "フォルダを選択してください",
+    "selectDrive": "ドライブ選択",
+    "startScan": "スキャン開始",
+    "scan": "スキャン",
+    "scanning": "スキャン中...",
+    "browse": "フォルダ閲覧"
+  },
+  "fileStatistics": {
+    "title": "ファイル統計",
+    "files": "ファイル",
+    "folders": "フォルダ",
+    "totalSize": "合計サイズ",
+    "fileTypes": {
+      "image": "画像",
+      "video": "動画",
+      "audio": "音声",
+      "document": "文書",
+      "archive": "アーカイブ",
+      "code": "コード",
+      "executable": "実行可能ファイル",
+      "other": "その他"
+    },
+    "noData": "表示するデータがありません",
+    "loading": "ファイル処理中..."
+  },
+  "fileList": {
+    "filename": "ファイル名",
+    "type": "種類",
+    "size": "サイズ",
+    "loading": "ファイル読み込み中...",
+    "empty": "このフォルダは空です",
+    "actions": {
+      "delete": "削除"
+    },
+    "fileTypes": {
+      "folder": "フォルダ",
+      "image": "画像",
+      "video": "動画",
+      "audio": "音声",
+      "document": "文書",
+      "archive": "アーカイブ",
+      "code": "コードファイル",
+      "executable": "実行可能ファイル",
+      "pdf": "PDF文書",
+      "text": "テキストファイル",
+      "spreadsheet": "スプレッドシート",
+      "presentation": "プレゼンテーション",
+      "compressed": "圧縮ファイル",
+      "unknown": "{ext}ファイル",
+      "other": "その他"
+    }
+  },
+  "selectionSummary": {
+    "noSelection": "ファイルが選択されていません",
+    "selected": "{count}個のファイルが選択されています",
+    "totalSize": "合計サイズ",
+    "typeDistribution": "種類の分布",
+    "selectedFiles": "選択されたファイル",
+    "actions": {
+      "delete": "削除",
+      "clear": "クリア"
+    }
+  },
+  "rootBrowser": {
+    "title": "ルートディレクトリブラウザ",
+    "enterPath": "パスを入力...",
+    "quickAccess": "クイックアクセス",
+    "loading": "ディレクトリを読み込み中...",
+    "empty": "このディレクトリは空です",
+    "error": "ディレクトリへのアクセスエラー: {message}",
+    "permissionDenied": "この場所へのアクセス権限がありません",
+    "selected": "{count}個のアイテムが選択されています",
+    "delete": "削除",
+    "clearSelection": "選択をクリア",
+    "deleteFailed": "削除に失敗しました: {message}",
+    "refreshing": "更新中...",
+    "confirmDelete": "これらのアイテムを削除してもよろしいですか？"
+  },
+  "dialog": {
+    "confirm": "確認",
+    "cancel": "キャンセル",
+    "ok": "OK",
+    "delete": {
+      "title": "削除の確認",
+      "message": "このアイテムを削除してもよろしいですか？",
+      "messageBulk": "これらの{count}個のアイテムを削除してもよろしいですか？"
+    }
+  },
+  "sizes": {
+    "byte": "B",
+    "kilobyte": "KB",
+    "megabyte": "MB",
+    "gigabyte": "GB",
+    "terabyte": "TB"
+  }
+}
