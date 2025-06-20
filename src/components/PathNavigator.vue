@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { FileSystemService } from "@/services/FileSystemService";
 import { ScannerService } from "@/services/ScannerService";
-import { Volumn } from "@/types/fs";
+import { FileInfo, Volumn } from "@/types/fs";
 import { ref, watch, onMounted, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
 
@@ -9,7 +9,7 @@ import { useI18n } from "vue-i18n";
 const emit = defineEmits<{
     (e: "pathChange", path: string): void;
     (e: "startScan", path: string): void;
-    (e: "scanComplete", success: boolean): void;
+    (e: "scanComplete", success: boolean, info: FileInfo | null): void;
 }>();
 
 // Platform detection utility
@@ -208,7 +208,10 @@ const startScan = throttle(function () {
     }, (progress) => {
         console.log("scan progress:", { progress });
     }, (message) => {
-        console.log("scan complete:", { message });
+        ScannerService.getFileStats(props.currentPath).then((info) => {
+            console.log("scan complete:", info);
+            emit("scanComplete", true, info);
+        })
         isScanning.value = false;
     }).then(() => {
         console.log("call finished:");

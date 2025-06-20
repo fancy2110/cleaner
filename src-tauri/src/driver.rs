@@ -1,4 +1,9 @@
-use std::{fs, path::Path, sync::{atomic::AtomicU64, Arc}, time::Duration};
+use std::{
+    fs,
+    path::Path,
+    sync::{atomic::AtomicU64, Arc},
+    time::Duration,
+};
 
 use crate::{model::Volumn, service::Scanner};
 use sysinfo::{Disks, System};
@@ -9,7 +14,7 @@ use tracing::debug;
 pub enum FileType {
     File(String),
     Directory,
-    Symlink, 
+    Symlink,
 }
 
 /**
@@ -17,15 +22,15 @@ pub enum FileType {
  */
 struct Element {
     /**
-     * Path of current node 
-    */
+     * Path of current node
+     */
     pub path: Box<Path>,
     /**
      * Total size of this directory or file
      */
     pub size: AtomicU64,
     /**
-     * the type of urrent path 
+     * the type of urrent path
      */
     pub file_type: FileType,
     /**
@@ -34,19 +39,18 @@ struct Element {
     created: Duration,
     /**
      * update time of current path
-    */
+     */
     modified: Duration,
     /**
      *  ready permission of current path
      */
     pub readonly: bool,
     /**
-     * if the file type is directory, then this field will be filled with the child elements of current path 
+     * if the file type is directory, then this field will be filled with the child elements of current path
      * else this field will be None
      */
-    children: Mutex<Option<Vec<Element>>>
+    children: Mutex<Option<Vec<Element>>>,
 }
-
 
 impl Element {
     /**
@@ -58,10 +62,10 @@ impl Element {
 
     /**
      *  get the whole node in this file tree
-     *  @param path the path of the node to be fetched 
+     *  @param path the path of the node to be fetched
      */
     async fn get_element(path: &Path) -> Option<Element> {
-        None   
+        None
     }
 
     // /**
@@ -73,7 +77,7 @@ impl Element {
     //         if let Some(children) = &mut *children {
     //             return Some(children.as_slice());
     //         } else {
-    //             let mut new_data :Vec<Element>= vec![]; 
+    //             let mut new_data :Vec<Element>= vec![];
     //             if let Ok(entries) = fs::read_dir(&self.path) {
     //                 for entry in entries {
     //                     let entry = entry.unwrap();
@@ -83,18 +87,13 @@ impl Element {
     //             }
 
     //             *children = Some(new_data);
-    //             return &*children.map(|item|  item.as_slice()); 
+    //             return &*children.map(|item|  item.as_slice());
     //         }
     //     }  else {
     //         return None;
     //     }
     // }
-     
 }
-
-
-
-
 
 #[command]
 /**
@@ -129,13 +128,12 @@ pub async fn get_available_drivers(
     let disks = Disks::new_with_refreshed_list();
     let mut volumns: Vec<Volumn> = vec![];
     for disk in &disks {
-
-        let full_path = disk.mount_point().display().to_string();
+        let full_path = disk.mount_point();
         debug!("full path {:?}", full_path);
 
         volumns.push(Volumn {
             name: disk.name().to_string_lossy().into_owned(),
-            path: full_path,
+            path: full_path.to_path_buf(),
             total_size: disk.total_space(),
             available_size: disk.available_space(),
         });

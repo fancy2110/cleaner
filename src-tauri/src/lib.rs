@@ -1,6 +1,6 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 use tauri::{command, State};
 use tauri::{Emitter, Manager};
@@ -10,7 +10,8 @@ use tracing::{debug, info};
 mod driver;
 mod model;
 mod service;
-use service::{FileStats, ScanProgress, Scanner};
+mod tree;
+use service::{ScanProgress, Scanner};
 
 use driver::get_available_drivers;
 
@@ -58,7 +59,7 @@ fn scan_dir_recursive(path: &str, result: &mut ScanResult) -> Result<(), String>
                 .elapsed()
                 .unwrap_or_default();
 
-            let path_str = path.to_string_lossy().into_owned();
+            let path_str = path;
 
             let file_details = FileDetails {
                 name,
@@ -102,7 +103,7 @@ async fn start_scan(
     state: State<'_, Mutex<Scanner>>,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
-    let path = Path::new(&path);
+    let path = PathBuf::from(&path);
     debug!(
         "start_folder_scan called with path: {:?}",
         path.to_string_lossy()
@@ -114,7 +115,7 @@ async fn start_scan(
     scanner.clear().await;
 
     // Add initial path to queue
-    scanner.add_to_queue(path, None).await;
+    scanner.add_to_queue(path).await;
 
     // Start scanning and get receiver
     let mut rx = scanner.start().await;
@@ -123,7 +124,7 @@ async fn start_scan(
     tokio::spawn(async move {
         while let Some(stats) = rx.recv().await {
             // Emit update event to frontend
-            let _ = app_handle.emit("folder-scan-update", &stats);
+            let _ = app_handle.emit("folder-scan-update", &FileDetails::from(stats));
         }
 
         debug!("all scan job finished");
@@ -138,18 +139,13 @@ async fn start_scan(
 async fn get_folder_stats(
     path: String,
     state: State<'_, Mutex<Scanner>>,
-) -> Result<Option<FileStats>, String> {
+) -> Result<Option<FileDetails>, String> {
     let scanner = state.lock().await;
-    let stats = scanner.get_stats(path).await;
+    let stats = scanner
+        .get_file_node(&PathBuf::from(path))
+        .await
+        .map(|stat| FileDetails::from(stat));
     Ok(stats)
-}
-
-#[command]
-async fn get_all_folder_stats(
-    state: State<'_, Mutex<Scanner>>,
-) -> Result<std::collections::HashMap<std::path::PathBuf, FileStats>, String> {
-    let scanner = state.lock().await;
-    Ok(scanner.get_all_stats().await)
 }
 
 #[command]
@@ -201,7 +197,6 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             start_scan,
             get_folder_stats,
-            get_all_folder_stats,
             get_scan_progress,
             stop_folder_scan,
             is_scanning,

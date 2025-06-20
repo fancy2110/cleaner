@@ -49,6 +49,12 @@ function handlePathChange(path: string) {
     currentPath.value = path;
 }
 
+// 处理路径变化
+function onScanComplete(success: boolean, info: FileInfo | null) {
+    console.log("new scan complete:", success, info);
+    files.value = info?.children ?? [];
+}
+
 // 处理打开目录
 async function handleOpenDirectory(path: string) {
     currentPath.value = path;
@@ -126,10 +132,7 @@ onMounted(() => {
         </header>
 
         <!-- 路径导航 -->
-        <PathNavigator
-            :current-path="currentPath"
-            @path-change="handlePathChange"
-        />
+        <PathNavigator :current-path="currentPath" @path-change="handlePathChange" @scan-complete="onScanComplete" />
 
         <!-- 主内容区 -->
         <main class="app-content">
@@ -143,34 +146,23 @@ onMounted(() => {
                 <!-- 左侧统计图表 -->
                 <div class="stats-section">
                     <FileStatistics :files="files" :is-loading="isLoading" />
-                    <FolderSizeView
-                        :current-path="currentPath"
-                        @path-change="handlePathChange"
-                    />
+                    <FolderSizeView :current-path="currentPath" @path-change="handlePathChange" />
                 </div>
 
                 <!-- 右侧文件列表 -->
                 <div class="files-section">
-                    <FileList
-                        :files="files"
-                        :is-loading="isLoading"
-                        :selected-files="selectedFiles.map((file) => file.path)"
-                        @select="handleFileSelect"
-                        @unselect="handleFileUnselect"
-                        @delete="handleDeleteFile"
-                        @open-directory="handleOpenDirectory"
-                    />
+                    <FileList :files="files" :is-loading="isLoading"
+                        :selected-files="selectedFiles.map((file) => file.path)" @select="handleFileSelect"
+                        @unselect="handleFileUnselect" @delete="handleDeleteFile"
+                        @open-directory="handleOpenDirectory" />
                 </div>
             </div>
         </main>
 
         <!-- 底部选择统计 -->
         <footer class="app-footer">
-            <SelectionSummary
-                :selected-files="selectedFiles"
-                @clear-selection="handleClearSelection"
-                @delete-selected="handleDeleteSelected"
-            />
+            <SelectionSummary :selected-files="selectedFiles" @clear-selection="handleClearSelection"
+                @delete-selected="handleDeleteSelected" />
         </footer>
     </div>
 </template>
