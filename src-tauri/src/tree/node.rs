@@ -81,6 +81,10 @@ where
         self.parent.as_ref().map(|item| item.clone())
     }
 
+    pub fn clear(&mut self) {
+        self.children.clear();
+    }
+
     pub fn update<'a, F>(&mut self, mut modify: F)
     where
         F: FnMut(&mut T),

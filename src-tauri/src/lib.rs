@@ -99,11 +99,10 @@ fn scan_dir_recursive(path: &str, result: &mut ScanResult) -> Result<(), String>
 
 #[command]
 async fn start_scan(
-    path: String,
     state: State<'_, Mutex<Scanner>>,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
-    let path = PathBuf::from(&path);
+    let path = PathBuf::from("/");
     debug!(
         "start_folder_scan called with path: {:?}",
         path.to_string_lossy()
@@ -113,9 +112,6 @@ async fn start_scan(
 
     // Clear previous scan data
     scanner.clear().await;
-
-    // Add initial path to queue
-    scanner.add_to_queue(path).await;
 
     // Start scanning and get receiver
     let mut rx = scanner.start().await;
@@ -170,6 +166,7 @@ async fn is_scanning(state: State<'_, Mutex<Scanner>>) -> Result<bool, String> {
 #[command]
 async fn clear_folder_scan(state: State<'_, Mutex<Scanner>>) -> Result<(), String> {
     let mut scanner = state.lock().await;
+    debug!("clear folder scan has been called");
     scanner.clear().await;
     Ok(())
 }

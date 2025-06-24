@@ -8,6 +8,8 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use tracing::debug;
+
 use crate::tree::node::{Node, NodeRef};
 
 pub mod node;
@@ -45,6 +47,7 @@ where
 
     pub fn insert_node(&mut self, parent: &K, value: Node<K, T>) -> Result<NodeRef<K, T>, String> {
         let node_key = value.key.clone();
+        debug!("enter insert node, for parent");
         let node = if let Some(parent) = self.nodes.get_mut(parent) {
             let node = {
                 let mut parent = parent.write().unwrap();
@@ -60,6 +63,7 @@ where
             None
         };
 
+        debug!("enter insert node, for node");
         if let Some(node) = node {
             self.nodes.insert(node_key, node.clone());
             Ok(node)
@@ -114,11 +118,6 @@ where
 
     pub fn size(&self) -> usize {
         self.nodes.len()
-    }
-
-    pub fn clear(&mut self) {
-        self.nodes.clear();
-        self.root.take();
     }
 }
 

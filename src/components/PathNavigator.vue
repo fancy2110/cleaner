@@ -203,11 +203,12 @@ function throttle(fn: Function, delay: number) {
 const startScan = throttle(function () {
     if (!props.currentPath || isScanning.value) return;
     isScanning.value = true;
-    ScannerService.startScan(props.currentPath, (stats) => {
+    ScannerService.startScan((stats) => {
         console.log("scan update:", stats);
     }, (progress) => {
         console.log("scan progress:", { progress });
     }, (message) => {
+        console.log("scan progress:", { message });
         ScannerService.getFileStats(props.currentPath).then((info) => {
             console.log("scan complete:", info);
             emit("scanComplete", true, info);

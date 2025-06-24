@@ -32,7 +32,6 @@ export class ScannerService {
      * @param onComplete 扫描完成回调
      */
     static async startScan(
-        path: string,
         onUpdate?: ScanUpdateCallback,
         onProgress?: ScanProgressCallback,
         onComplete?: ScanCompleteCallback
@@ -66,7 +65,7 @@ export class ScannerService {
             }
 
             // 开始扫描
-            await invoke("start_scan", { path });
+            await invoke("start_scan", {});
         } catch (error) {
             console.error("启动文件夹扫描失败:", error);
             throw error;
@@ -77,13 +76,14 @@ export class ScannerService {
      * 停止当前扫描
      */
     static async stopScan(): Promise<void> {
-        try {
-            await invoke("stop_folder_scan");
-            await this.cleanup();
-        } catch (error) {
-            console.error("停止扫描失败:", error);
-            throw error;
-        }
+        // try {
+        //     console.log("call stop scan from vue")
+        //     await invoke("stop_folder_scan");
+        //     await this.cleanup();
+        // } catch (error) {
+        //     console.error("停止扫描失败:", error);
+        //     throw error;
+        // }
     }
 
     /**
