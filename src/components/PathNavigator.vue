@@ -1,24 +1,20 @@
 <script setup lang="ts">
-import { FileSystemService } from "@/services/FileSystemService";
-import { ScannerService } from "@/services/ScannerService";
-import { FileInfo, Volumn } from "@/types/fs";
-import { ref, watch, onMounted, onUnmounted } from "vue";
-import { useI18n } from "vue-i18n";
+import { FileSystemService } from '@/service/FileSystemService';
+import { ScannerService } from '@/service/ScannerService';
+import { FileInfo, Volumn } from '@/types/fs';
+import { ref, watch, onMounted, onUnmounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 // Define custom events for use outside the component
 const emit = defineEmits<{
-    (e: "pathChange", path: string): void;
-    (e: "startScan", path: string): void;
-    (e: "scanComplete", success: boolean, info: FileInfo | null): void;
+    (e: 'pathChange', path: string): void;
+    (e: 'startScan', path: string): void;
+    (e: 'scanComplete', success: boolean, info: FileInfo | null): void;
 }>();
 
 // Platform detection utility
-const isMac =
-    navigator.userAgent.toUpperCase().indexOf("MAC") >= 0 ||
-    navigator.platform.toUpperCase().indexOf("MAC") >= 0;
-const isWindows =
-    navigator.userAgent.toUpperCase().indexOf("WIN") >= 0 ||
-    navigator.platform.toUpperCase().indexOf("WIN") >= 0;
+const isMac = navigator.userAgent.toUpperCase().indexOf('MAC') >= 0 || navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+const isWindows = navigator.userAgent.toUpperCase().indexOf('WIN') >= 0 || navigator.platform.toUpperCase().indexOf('WIN') >= 0;
 
 interface Props {
     currentPath: string;
@@ -29,10 +25,9 @@ const { t } = useI18n();
 
 const pathSegments = ref<{ name: string; fullPath: string }[]>([]);
 const availableDrives = ref<Volumn[]>([]);
-const selectedDrive = ref<string>("");
+const selectedDrive = ref<string>('');
 const showDriveSelector = ref(false);
 const isScanning = ref(false);
-const scanButtonHover = ref(false);
 
 // 监听路径变化，并解析为路径段
 watch(
@@ -42,50 +37,44 @@ watch(
             pathSegments.value = [];
             return;
         }
-
         // 分割路径并创建导航路径段
         const segments = newPath.split(/[/\\]/);
-        let currentFullPath = "";
+        let currentFullPath = '';
 
         pathSegments.value = segments
             .filter((segment) => segment)
             .map((segment, index) => {
                 // 对于Windows路径，需要特殊处理盘符
-                if (index === 0 && segment.includes(":")) {
-                    currentFullPath = segment + "\\";
+                if (index === 0 && segment.includes(':')) {
+                    currentFullPath = segment + '\\';
                     return {
                         name: segment,
-                        fullPath: currentFullPath,
+                        fullPath: currentFullPath
                     };
                 }
 
                 // 为Unix路径添加根目录
                 if (index === 0 && !currentFullPath) {
-                    currentFullPath = "/" + segment;
+                    currentFullPath = '/' + segment;
                 } else {
-                    currentFullPath =
-                        currentFullPath +
-                        (currentFullPath.endsWith("/") || currentFullPath.endsWith("\\")
-                            ? ""
-                            : "/") +
-                        segment;
+                    currentFullPath = currentFullPath + (currentFullPath.endsWith('/') || currentFullPath.endsWith('\\') ? '' : '/') + segment;
                 }
 
                 return {
                     name: segment,
-                    fullPath: currentFullPath,
+                    fullPath: currentFullPath
                 };
             });
 
         // Update selected drive based on current path
         updateSelectedDriveFromPath(newPath);
     },
-    { immediate: true },
+    { immediate: true }
 );
 
 // 导航到特定路径段
 function navigateToSegment(fullPath: string) {
-    emit("pathChange", fullPath);
+    emit('pathChange', fullPath);
 }
 
 // 获取可用的磁盘/驱动器
@@ -103,9 +92,7 @@ async function getAvailableDrives() {
     } catch (error) {
         // Error handling without console logging
         // Fallback to basic drives
-        const volumns: Volumn[] = isWindows
-            ? [{ name: "C:", path: "C:\\", icon: "💻", totalSize: 0 }]
-            : [{ name: "Root", path: "/", icon: "🖥️", totalSize: 0 }];
+        const volumns: Volumn[] = isWindows ? [{ name: 'C:', path: 'C:\\', icon: '💻', totalSize: 0 }] : [{ name: 'Root', path: '/', icon: '🖥️', totalSize: 0 }];
         availableDrives.value = volumns;
     }
 }
@@ -118,17 +105,9 @@ function updateSelectedDriveFromPath(path: string) {
     const drive = availableDrives.value.find((drive) => {
         if (isWindows && path.toUpperCase().startsWith(drive.name.toUpperCase())) {
             return true;
-        } else if (
-            isMac &&
-            drive.name === "Macintosh HD" &&
-            (path === "/" || path.startsWith("/System") || path.startsWith("/Users"))
-        ) {
+        } else if (isMac && drive.name === 'Macintosh HD' && (path === '/' || path.startsWith('/System') || path.startsWith('/Users'))) {
             return true;
-        } else if (
-            isMac &&
-            path.includes("/Volumes/") &&
-            path.includes(drive.name)
-        ) {
+        } else if (isMac && path.includes('/Volumes/') && path.includes(drive.name)) {
             return true;
         } else if (!isWindows && !isMac && path.startsWith(drive.path)) {
             return true;
@@ -140,14 +119,14 @@ function updateSelectedDriveFromPath(path: string) {
         selectedDrive.value = drive.name;
     } else {
         // Default fallback
-        selectedDrive.value = isWindows ? "C:" : isMac ? "Macintosh HD" : "Root";
+        selectedDrive.value = isWindows ? 'C:' : isMac ? 'Macintosh HD' : 'Root';
     }
 }
 
 // 选择驱动器
 function selectDrive(drive: { name: string; path: string }) {
     selectedDrive.value = drive.name;
-    emit("pathChange", drive.path);
+    emit('pathChange', drive.path);
     showDriveSelector.value = false;
 }
 
@@ -162,12 +141,12 @@ function toggleDriveSelector(event: Event) {
 
         // Set timeout to allow Vue to render the dropdown
         setTimeout(() => {
-            const dropdown = document.querySelector(".drive-dropdown");
+            const dropdown = document.querySelector('.drive-dropdown');
             if (dropdown && dropdown instanceof HTMLElement) {
-                dropdown.style.position = "fixed";
+                dropdown.style.position = 'fixed';
                 dropdown.style.top = `${rect.bottom + 2}px`;
                 dropdown.style.left = `${rect.left}px`;
-                dropdown.style.zIndex = "99999";
+                dropdown.style.zIndex = '99999';
             }
         }, 0);
     }
@@ -178,11 +157,7 @@ function handleClickOutside(event: Event) {
     if (!event.target) return;
 
     const target = event.target as Element;
-    if (
-        showDriveSelector.value &&
-        !target.closest(".drive-selector") &&
-        !target.closest(".drive-dropdown")
-    ) {
+    if (showDriveSelector.value && !target.closest('.drive-selector') && !target.closest('.drive-dropdown')) {
         showDriveSelector.value = false;
     }
 }
@@ -203,49 +178,53 @@ function throttle(fn: Function, delay: number) {
 const startScan = throttle(function () {
     if (!props.currentPath || isScanning.value) return;
     isScanning.value = true;
-    ScannerService.startScan((stats) => {
-        console.log("scan update:", stats);
-    }, (progress) => {
-        console.log("scan progress:", { progress });
-    }, (message) => {
-        console.log("scan progress:", { message });
-        ScannerService.getFileStats(props.currentPath).then((info) => {
-            console.log("scan complete:", info);
-            emit("scanComplete", true, info);
-        })
-        isScanning.value = false;
-    }).then(() => {
-        console.log("call finished:");
+    ScannerService.startScan(
+        (stats) => {
+            console.log('scan update:', stats);
+        },
+        (progress) => {
+            console.log('scan progress:', { progress });
+        },
+        (message) => {
+            console.log('scan progress:', { message });
+            ScannerService.getFileStats(props.currentPath).then((info) => {
+                console.log('scan complete:', info);
+                emit('scanComplete', true, info);
+            });
+            isScanning.value = false;
+        }
+    ).then(() => {
+        console.log('call finished:');
     });
 }, 500);
 
 // 获取切断的路径名（用于显示在面包屑中）
 function getTruncatedName(name: string, maxLength = 20): string {
     if (name.length <= maxLength) return name;
-    return name.substring(0, maxLength - 3) + "...";
+    return name.substring(0, maxLength - 3) + '...';
 }
 
 // 格式化路径显示
 function formatPathForDisplay(segment: string, index: number): string {
     // 如果是第一个段并且是根目录
     if (index === 0) {
-        if (segment === "/") return "Root";
-        if (segment.includes(":")) return segment.toUpperCase(); // Windows drives
-        if (segment === "Users") return "Users";
-        if (segment === "Volumes") return "Volumes";
+        if (segment === '/') return 'Root';
+        if (segment.includes(':')) return segment.toUpperCase(); // Windows drives
+        if (segment === 'Users') return 'Users';
+        if (segment === 'Volumes') return 'Volumes';
         return segment;
     }
 
     // 特殊目录美化
-    if (segment === "Users" || segment === "user") return "Users";
-    if (segment === "Documents") return "Documents";
-    if (segment === "Downloads") return "Downloads";
-    if (segment === "Desktop") return "Desktop";
-    if (segment === "Pictures") return "Pictures";
-    if (segment === "Music") return "Music";
-    if (segment === "Videos") return "Videos";
-    if (segment === "Applications") return "Apps";
-    if (segment === "Program Files") return "Programs";
+    if (segment === 'Users' || segment === 'user') return 'Users';
+    if (segment === 'Documents') return 'Documents';
+    if (segment === 'Downloads') return 'Downloads';
+    if (segment === 'Desktop') return 'Desktop';
+    if (segment === 'Pictures') return 'Pictures';
+    if (segment === 'Music') return 'Music';
+    if (segment === 'Videos') return 'Videos';
+    if (segment === 'Applications') return 'Apps';
+    if (segment === 'Program Files') return 'Programs';
 
     // 普通路径段
     return segment;
@@ -256,14 +235,14 @@ onMounted(() => {
     getAvailableDrives();
 
     // Add click outside listener
-    document.addEventListener("click", handleClickOutside);
+    document.addEventListener('click', handleClickOutside);
 
     // Set initial selected drive if we have a currentPath
     if (props.currentPath) {
         updateSelectedDriveFromPath(props.currentPath);
     } else {
         // Set a default selected drive if no current path
-        selectedDrive.value = isWindows ? "C:" : isMac ? "Macintosh HD" : "Root";
+        selectedDrive.value = isWindows ? 'C:' : isMac ? 'Macintosh HD' : 'Root';
     }
 
     // No additional setup needed for dropdown positioning
@@ -271,7 +250,7 @@ onMounted(() => {
 
 // 组件卸载时移除事件监听器
 onUnmounted(() => {
-    document.removeEventListener("click", handleClickOutside);
+    document.removeEventListener('click', handleClickOutside);
 });
 </script>
 
@@ -279,7 +258,7 @@ onUnmounted(() => {
     <div class="path-navigator">
         <div class="path-display">
             <div v-if="!currentPath" class="empty-path">
-                <span>{{ t("pathNavigator.pleaseSelect") }}</span>
+                <span>{{ t('pathNavigator.pleaseSelect') }}</span>
             </div>
             <div v-else class="directory-buttons">
                 <div class="path-container">
@@ -287,7 +266,7 @@ onUnmounted(() => {
                     <div class="drive-selector">
                         <button class="directory-button drive-button" @click="toggleDriveSelector"
                             :title="t('pathNavigator.selectDrive')" :class="{ 'with-separator': true }">
-                            {{ selectedDrive || "..." }}
+                            {{ selectedDrive || '...' }}
                         </button>
 
                         <div v-show="showDriveSelector" class="drive-dropdown">
@@ -301,7 +280,7 @@ onUnmounted(() => {
                     <!-- Path segments -->
                     <button v-for="(segment, index) in pathSegments" :key="index" class="directory-button" :class="{
                         active: index === pathSegments.length - 1,
-                        'with-separator': index < pathSegments.length - 1,
+                        'with-separator': index < pathSegments.length - 1
                     }" @click="navigateToSegment(segment.fullPath)" :title="segment.fullPath"
                         :disabled="index === pathSegments.length - 1">
                         {{ getTruncatedName(formatPathForDisplay(segment.name, index)) }}
@@ -311,21 +290,14 @@ onUnmounted(() => {
         </div>
 
         <div class="action-buttons">
-            <button class="control-button scan-button" @click="startScan" :disabled="!currentPath || isScanning"
-                :title="t('pathNavigator.startScan')" @mouseenter="scanButtonHover = true"
-                @mouseleave="scanButtonHover = false">
+            <button class="control-button scan-button" @click="startScan" :disabled="!currentPath"
+                :title="t('pathNavigator.startScan')">
                 <span class="icon">
                     <span v-if="isScanning" class="loading-spinner"></span>
                     <span v-else>🔍</span>
                 </span>
                 <span class="button-text">
-                    {{
-                        isScanning
-                            ? t("pathNavigator.scanning")
-                            : scanButtonHover || !currentPath
-                                ? t("pathNavigator.startScan")
-                                : t("pathNavigator.scan")
-                    }}
+                    {{ isScanning ? t('pathNavigator.scanning') : t('pathNavigator.scan') }}
                 </span>
             </button>
         </div>
@@ -536,24 +508,6 @@ onUnmounted(() => {
     box-shadow: none;
     margin: 0;
     z-index: 2;
-}
-
-.directory-button.with-separator::after {
-    content: "/";
-    position: absolute;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--separator-color, #999);
-    font-size: 15px;
-    font-weight: 400;
-    opacity: 0.7;
-    pointer-events: none;
-    z-index: 3;
-    width: 16px;
 }
 
 .directory-button.active.with-separator::after {

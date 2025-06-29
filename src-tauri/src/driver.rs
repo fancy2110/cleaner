@@ -126,17 +126,21 @@ pub async fn get_available_drivers(
 
     // We display all disks' information:
     let disks = Disks::new_with_refreshed_list();
+    debug!("System disks size: {:?}", disks.list().len());
     let mut volumns: Vec<Volumn> = vec![];
     for disk in &disks {
         let full_path = disk.mount_point();
-        debug!("full path {:?}", full_path);
 
-        volumns.push(Volumn {
+        let volumn = Volumn {
             name: disk.name().to_string_lossy().into_owned(),
             path: full_path.to_path_buf(),
             total_size: disk.total_space(),
             available_size: disk.available_space(),
-        });
+        };
+
+        debug!("full path {:?}, info:{:?}", full_path, volumn);
+
+        volumns.push(volumn);
     }
     return Ok(volumns);
 }
