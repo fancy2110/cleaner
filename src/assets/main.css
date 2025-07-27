@@ -8,43 +8,43 @@
   --secondary-color: #FF9800;
   --secondary-dark: #F57C00;
   --secondary-light: #FFE0B2;
-  
+
   --success-color: #4CAF50;
   --error-color: #F44336;
   --warning-color: #FFC107;
   --info-color: #2196F3;
-  
+
   --text-primary: #212121;
   --text-secondary: #757575;
   --divider-color: #BDBDBD;
-  
+
   --background-color: #f5f5f5;
   --card-color: #ffffff;
-  
+
   /* Spacing */
   --spacing-xs: 4px;
   --spacing-sm: 8px;
   --spacing-md: 16px;
   --spacing-lg: 24px;
   --spacing-xl: 32px;
-  
+
   /* Border radius */
   --border-radius-sm: 4px;
   --border-radius-md: 8px;
   --border-radius-lg: 12px;
-  
+
   /* Font sizes */
   --font-size-xs: 12px;
   --font-size-sm: 14px;
   --font-size-md: 16px;
   --font-size-lg: 18px;
   --font-size-xl: 24px;
-  
+
   /* Shadow */
   --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
   --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.12);
   --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.14);
-  
+
   /* Transitions */
   --transition-fast: 0.15s ease;
   --transition-normal: 0.25s ease;
@@ -60,8 +60,18 @@ body {
   background-color: var(--background-color);
   margin: 0;
   padding: 0;
+  height: 100vh;
 }
 
+/* 隐藏滚动条但保留功能 */
+body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+html {
+  overflow: hidden;
+}
 * {
   box-sizing: border-box;
 }

@@ -1,8 +1,9 @@
-<script setup></script>
+<script setup>
+import { ref } from 'vue';
+const breadcrumbHome = ref({ icon: 'pi pi-home', to: '/' });
+const breadcrumbItems = ref([{ label: 'Computer' }, { label: 'Notebook' }, { label: 'Accessories' }, { label: 'Backpacks' }, { label: 'Item' }]);
+</script>
 
 <template>
-    <div class="layout-footer">
-        SAKAI by
-        <a href="https://primevue.org" target="_blank" rel="noopener noreferrer" class="text-primary font-bold hover:underline">PrimeVue</a>
-    </div>
+    <Breadcrumb :home="breadcrumbHome" :model="breadcrumbItems" />
 </template>
