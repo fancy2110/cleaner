@@ -19,7 +19,7 @@ interface Props {
         </div>
 
         <div class="place-content-center">
-            <Button icon="pi pi-check w-10" text raised rounded @click="$router.push('/uikit/panel')">
+            <Button icon="pi pi-check w-10" text raised rounded @click="$router.push('/pages/empty')">
                 <i class="p-3">Delete</i>
             </Button>
 
