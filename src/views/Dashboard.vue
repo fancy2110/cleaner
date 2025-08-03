@@ -232,26 +232,34 @@ watch(
     },
     { immediate: true }
 );
+
+const pathHome = ref({ icon: 'pi pi-home', to: '/' });
+const pathItems = ref([{ label: 'Computer' }, { label: 'Notebook' }, { label: 'Accessories' }, { label: 'Backpacks' }, { label: 'Item' }]);
 </script>
 
 <template>
-    <Splitter class="h-full">
-        <SplitterPanel :size="30" :minSize="30">
-            <div class="p-3 overflow-auto place-content-center">
-                <Chart class="w-full place-content-center" type="pie" :data="pieData" :options="pieOptions"> </Chart>
-            </div>
-        </SplitterPanel>
-        <SplitterPanel :size="70" :minSize="50">
-            <div class="p-3 overflow-auto">
-                <TreeTable :value="treeTableValue" selectionMode="checkbox"
-                    v-model:selectionKeys="selectedTreeTableValue">
-                    <Column field="name" header="Name" :expander="true"></Column>
-                    <Column field="size" header="Size"></Column>
-                    <Column field="type" header="Type"></Column>
-                </TreeTable>
-            </div>
-        </SplitterPanel>
-    </Splitter>
+    <div>
+        <Breadcrumb class="flex w-full" :home="pathHome" :model="pathItems" />
+
+        <Splitter class="h-full">
+            <SplitterPanel :size="30" :minSize="30">
+                <div class="p-3 aspect-1/1 overflow-auto place-content-center">
+                    <Chart class="w-full place-content-center" type="pie" :data="pieData" :options="pieOptions">
+                    </Chart>
+                </div>
+            </SplitterPanel>
+            <SplitterPanel :size="70" :minSize="60">
+                <div class="p-3 overflow-auto">
+                    <TreeTable :value="treeTableValue" selectionMode="checkbox"
+                        v-model:selectionKeys="selectedTreeTableValue">
+                        <Column field="name" header="Name" :expander="true"></Column>
+                        <Column field="size" header="Size"></Column>
+                        <Column field="type" header="Type"></Column>
+                    </TreeTable>
+                </div>
+            </SplitterPanel>
+        </Splitter>
+    </div>
 </template>
 
 <style lang="css" scoped>

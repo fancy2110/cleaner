@@ -10,6 +10,11 @@ const router = createRouter({
             children: [
                 {
                     path: '/',
+                    name: 'landing',
+                    component: () => import('@/views/pages/Landing.vue')
+                },
+                {
+                    path: '/main',
                     name: 'dashboard',
                     component: () => import('@/views/Dashboard.vue')
                 },
@@ -106,11 +111,7 @@ const router = createRouter({
                 }
             ]
         },
-        {
-            path: '/landing',
-            name: 'landing',
-            component: () => import('@/views/pages/Landing.vue')
-        },
+
         {
             path: '/pages/notfound',
             name: 'notfound',

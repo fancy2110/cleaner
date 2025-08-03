@@ -1,261 +1,92 @@
-<script setup>
-import { useLayout } from '@/layout/composables/layout';
-import AppConfigurator from './AppConfigurator.vue';
+<script setup lang="ts">
+import { ref } from 'vue';
+import { FileInfo, Volumn } from '@/types/fs';
+import router from '@/router';
+interface Props { }
 
-const { toggleMenu } = useLayout();
+const props = defineProps<Props>();
+
+// Define custom events for use outside the component
+const emit = defineEmits<{
+    (e: 'pathChange', path: string): void;
+    (e: 'startScan', path: string): void;
+    (e: 'scanComplete', success: boolean, info: FileInfo | null): void;
+}>();
+
+const showDriveSelector = ref(true);
+const selectedDrive = ref<string>('/');
+
+// 选择驱动器
+function selectDrive(drive: { name: string; path: string }) {
+    selectedDrive.value = drive.name;
+    emit('pathChange', drive.path);
+    showDriveSelector.value = false;
+}
+
+const availableDrives = ref([
+    {
+        // path: '/',
+        label: 'Disk 1',
+        icon: 'pi pi-save',
+        command: () => {
+            selectDrive({ name: 'Home1', path: '/' });
+        }
+        // totalSize: 100
+    },
+    {
+        // path: '/',
+        icon: 'pi pi-save',
+        // totalSize: 100,
+        label: 'Disk 2',
+        command: () => {
+            selectDrive({ name: 'Home2', path: '/' });
+        }
+    },
+    {
+        // path: '/',
+        // totalSize: 100,
+        label: 'Disk 3',
+        icon: 'pi pi-trash',
+        command: () => {
+            selectDrive({ name: 'Home3', path: '/' });
+        }
+    }
+]);
+
+const menu = ref(null);
+
+function toggleMenu(event: Event) {
+    menu.value.toggle(event);
+}
+
+const loading = ref([false, false, false]);
+
+function load(index: number) {
+    loading.value[index] = true;
+    setTimeout(() => {
+        loading.value[index] = false;
+        console.log('scan complete');
+        router.push('/main');
+    }, 1000);
+}
 </script>
 
 <template>
-    <div class="layout-topbar">
-        <div class="layout-topbar-logo-container">
-            <button class="layout-menu-button layout-topbar-action" @click="toggleMenu">
-                <i class="pi pi-bars"></i>
-            </button>
+    <div class="flex p-2">
+        <div>
+            <Menu ref="menu" :model="availableDrives" :popup="true" />
+            <Button class="w-full" type="button" :label="selectedDrive" icon="pi pi-angle-down" @click="toggleMenu" />
         </div>
 
-        <div class="layout-topbar-usage">
-            <ProgressBar :value="50" :showValue="true" style="height: 100%"></ProgressBar>
+        <div class="w-full flex items-center mx-4 border-2 border-black">
+            <!-- disk scan progress-->
+            <!-- <ProgressBar :value="50" :showValue="true" class="h-1 w-full items-center"></ProgressBar> -->
+            <div class="text-sm w-1/2 text-left">Used 35GB</div>
+            <div class="text-sm w-1/2 text-right">Total 2000TB</div>
         </div>
 
-        <div class="layout-topbar-actions">
-            <div class="layout-config-menu">
-                <div class="relative">
-                    <button
-                        v-styleclass="{ selector: '@next', enterFromClass: 'hidden', enterActiveClass: 'animate-scalein', leaveToClass: 'hidden', leaveActiveClass: 'animate-fadeout', hideOnOutsideClick: true }"
-                        type="button" class="layout-topbar-action layout-topbar-action-highlight">
-                        <i class="pi pi-palette"></i>
-                    </button>
-                    <AppConfigurator />
-                </div>
-            </div>
+        <Button type="button" label="Search" icon="pi pi-search" :loading="loading[0]" @click="load(0)" />
 
-            <div class="layout-topbar-menu hidden lg:block">
-                <div class="layout-topbar-menu-content">
-                    <button type="button" class="layout-topbar-action">
-                        <i class="pi pi-calendar"></i>
-                        <span>Calendar</span>
-                    </button>
-                    <button type="button" class="layout-topbar-action">
-                        <i class="pi pi-inbox"></i>
-                        <span>Messages</span>
-                    </button>
-                    <button type="button" class="layout-topbar-action">
-                        <i class="pi pi-user"></i>
-                        <span>Profile</span>
-                    </button>
-                </div>
-            </div>
-        </div>
+        <!-- <Button type="button" label="Scan" @click="$router.push('/uikit/button')" /> -->
     </div>
 </template>
-
-<style lang="scss" scoped>
-@use '@/assets/layout/mixins.scss' as *;
-
-.layout-topbar {
-    height: 4rem;
-    z-index: 997;
-    left: 0;
-    top: 0;
-    width: 100%;
-    padding: 0 2rem;
-    background-color: var(--surface-card);
-    transition: left var(--layout-section-transition-duration);
-    border-bottom: 1px solid var(--surface-border);
-    display: flex;
-    align-items: center;
-
-    .layout-topbar-logo-container {
-        width: 10rem;
-        display: flex;
-        align-items: center;
-    }
-
-    .layout-topbar-logo {
-        display: inline-flex;
-        align-items: center;
-        font-size: 1.5rem;
-        border-radius: var(--content-border-radius);
-        color: var(--text-color);
-        font-weight: 500;
-        gap: 0.5rem;
-
-        svg {
-            width: 3rem;
-        }
-
-        &:focus-visible {
-            @include focused();
-        }
-    }
-
-    .layout-topbar-action {
-        display: inline-flex;
-        justify-content: center;
-        align-items: center;
-        border-radius: 50%;
-        width: 2.5rem;
-        height: 2.5rem;
-        color: var(--text-color);
-        transition: background-color var(--element-transition-duration);
-        cursor: pointer;
-
-        &:hover {
-            background-color: var(--surface-hover);
-        }
-
-        &:focus-visible {
-            @include focused();
-        }
-
-        i {
-            font-size: 1.25rem;
-        }
-
-        span {
-            font-size: 1rem;
-            display: none;
-        }
-
-        &.layout-topbar-action-highlight {
-            background-color: var(--primary-color);
-            color: var(--primary-contrast-color);
-        }
-    }
-
-    .layout-menu-button {
-        margin-right: 0.5rem;
-    }
-
-    .layout-topbar-usage {
-        margin-left: auto;
-        display: flex;
-        width: 50rem;
-        height: 100%;
-    }
-
-    .layout-topbar-actions {
-        margin-left: auto;
-        display: flex;
-        gap: 1rem;
-    }
-
-    .layout-topbar-menu-content {
-        display: flex;
-        gap: 1rem;
-    }
-
-    .layout-config-menu {
-        display: flex;
-        gap: 1rem;
-    }
-}
-
-@media (max-width: 991px) {
-    .layout-topbar {
-        padding: 0 2rem;
-
-        .layout-topbar-logo-container {
-            width: auto;
-        }
-
-        .layout-menu-button {
-            margin-left: 0;
-            margin-right: 0.5rem;
-        }
-
-        .layout-topbar-usage {
-            margin-left: auto;
-            display: flex;
-            width: 50rem;
-            height: 100%;
-            gap: 1rem;
-        }
-
-        .layout-topbar-menu {
-            position: absolute;
-            background-color: var(--surface-overlay);
-            transform-origin: top;
-            box-shadow:
-                0px 3px 5px rgba(0, 0, 0, 0.02),
-                0px 0px 2px rgba(0, 0, 0, 0.05),
-                0px 1px 4px rgba(0, 0, 0, 0.08);
-            border-radius: var(--content-border-radius);
-            padding: 1rem;
-            right: 2rem;
-            top: 4rem;
-            min-width: 15rem;
-            border: 1px solid var(--surface-border);
-
-            .layout-topbar-menu-content {
-                gap: 0.5rem;
-            }
-
-            .layout-topbar-action {
-                display: flex;
-                width: 100%;
-                height: auto;
-                justify-content: flex-start;
-                border-radius: var(--content-border-radius);
-                padding: 0.5rem 1rem;
-
-                i {
-                    font-size: 1rem;
-                    margin-right: 0.5rem;
-                }
-
-                span {
-                    font-weight: medium;
-                    display: block;
-                }
-            }
-        }
-
-        .layout-topbar-menu-content {
-            flex-direction: column;
-        }
-    }
-}
-
-.config-panel {
-    .config-panel-label {
-        font-size: 0.875rem;
-        color: var(--text-secondary-color);
-        font-weight: 600;
-        line-height: 1;
-    }
-
-    .config-panel-colors {
-        >div {
-            padding-top: 0.5rem;
-            display: flex;
-            gap: 0.5rem;
-            flex-wrap: wrap;
-            justify-content: space-between;
-
-            button {
-                border: none;
-                width: 1.25rem;
-                height: 1.25rem;
-                border-radius: 50%;
-                padding: 0;
-                cursor: pointer;
-                outline-color: transparent;
-                outline-width: 2px;
-                outline-style: solid;
-                outline-offset: 1px;
-
-                &.active-color {
-                    outline-color: var(--primary-color);
-                }
-            }
-        }
-    }
-
-    .config-panel-settings {
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-    }
-}
-</style>
