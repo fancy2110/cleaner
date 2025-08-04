@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import { FileInfo, Volumn } from '@/types/fs';
 import router from '@/router';
 
 function open(path: string) {

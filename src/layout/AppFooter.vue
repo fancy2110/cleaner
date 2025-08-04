@@ -5,24 +5,23 @@ import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
-
-interface Props {
-    currentPath: string;
-}
 </script>
 
 <template>
-    <div class="flex flex-row items-center w-full gap-2 p-2">
-        <div class="place-content-center w-full">
-            <i>4.5GB</i>
-            <!-- <Button type="button" label="Delete" icon="pi pi-search" :loading="loading[0]" /> -->
-        </div>
+    <div class="items-center w-full gap-2 p-2 place-content-end">
+        <Panel header="To Delete: 13.8 GB" :toggleable="true">
+            <p class="leading-normal m-0 w-full">
+                Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et
+                dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip
+                ex ea commodo consequat.
+                Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
+                Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est
+                laborum.
+            </p>
+        </Panel>
 
         <div class="place-content-center">
-            <Button icon="pi pi-check w-10" text raised rounded @click="$router.push('/pages/empty')">
-                <i class="p-3">Delete</i>
-            </Button>
-
+            <Button icon="pi pi-trash" label="Delete" @click="$router.push('/pages/empty')"> </Button>
             <!-- <Button type="button" label="Delete" icon="pi pi-search" :loading="loading[0]" /> -->
         </div>
     </div>
