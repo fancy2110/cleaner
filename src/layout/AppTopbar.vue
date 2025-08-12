@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue';
-import { FileInfo, Volumn } from '@/types/fs';
+import { onMounted, onUnmounted, ref, watch } from 'vue';
+import { createDefaultVolumn, FileInfo, Volumn, formatFileSize } from '@/types/fs';
+import { useToast } from 'primevue/usetoast';
 import router from '@/router';
 import { FileSystemService } from '@/service/FileSystemService';
+import { MenuItem } from 'primevue/menuitem';
 import { ScannerService } from '@/service/ScannerService';
 
+const toast = useToast();
 // Define custom events for use outside the component
 const emit = defineEmits<{
     (e: 'pathChange', path: string): void;
@@ -13,23 +16,15 @@ const emit = defineEmits<{
 }>();
 
 const showDriveSelector = ref(true);
-const selectedDrive = ref<string>('/');
-const availableDrives = ref([
-    {
-        label: 'Disk',
-        icon: 'pi pi-save',
-        command: () => {
-            selectDrive({ name: 'Root', path: '/' });
-        }
-    }
-]);
+const selectedDrive = ref<{ driver: Volumn | null; path: string }>({ driver: null, path: '' });
+const availableDrives = ref<MenuItem[]>([]);
 
 // Platform detection utility
 const isWindows = navigator.userAgent.toUpperCase().indexOf('WIN') >= 0 || navigator.platform.toUpperCase().indexOf('WIN') >= 0;
 const isMac = navigator.userAgent.toUpperCase().indexOf('MAC') >= 0 || navigator.platform.toUpperCase().indexOf('MAC') >= 0;
 
 // 获取可用的磁盘/驱动器
-async function getAvailableDrives() {
+async function getAvailableDrives(): Promise<Volumn[]> {
     var drives: Volumn[] = [];
     try {
         // In a real implementation, this would use Tauri's API to get actual drives
@@ -43,88 +38,92 @@ async function getAvailableDrives() {
     } catch (error) {
         // Error handling without console logging
         // Fallback to basic drives
-        drives = isWindows ? [{ name: 'C:', path: 'C:\\', icon: '💻', totalSize: 0 }] : [{ name: 'Root', path: '/', icon: '🖥️', totalSize: 0 }];
+        let item = isWindows ? { name: 'C:', path: 'C:\\', icon: '💻' } : { name: 'Root', path: '/', icon: '🖥️' };
+        drives = [createDefaultVolumn(item)];
     }
 
     availableDrives.value = drives.map((drive) => ({
         label: drive.name,
         icon: 'pi pi-save',
         command: () => {
-            selectDrive({ name: drive.name, path: drive.path });
+            selectDrive(drive);
         }
     }));
+    console.log('availableDrives:', availableDrives.value);
+    return drives;
 }
 
 // 选择驱动器
-function selectDrive(drive: { name: string; path: string }) {
-    selectedDrive.value = drive.name;
-    emit('pathChange', drive.path);
+function selectDrive(volumn: Volumn) {
+    console.log('selectDrive:', volumn);
+    selectedDrive.value = { driver: volumn, path: volumn.path };
+    emit('pathChange', volumn.path);
     showDriveSelector.value = false;
 }
 
-const menu = ref<Event>(null);
+// 选择驱动器
+function selectPath(path: string) {
+    let driver = selectedDrive.value.driver;
+    selectedDrive.value = { driver: driver, path: path };
+    emit('pathChange', path);
+    showDriveSelector.value = false;
+}
+
+const menu = ref<Event | null>(null);
 
 function toggleMenu(event: Event | null) {
     menu.value.toggle(event);
 }
 
 const isScanning = ref(false);
-const progress = ref(0);
-let interval: any = null;
+const scan_progress = ref(0);
 
 // 开始扫描
-function startScan() {
-    const drive = selectDrive;
-    if (!drive || isScanning.value) return;
+async function startScan() {
+    const drive = selectedDrive;
+    if (!drive.value || isScanning.value) return;
     isScanning.value = true;
-    progress.value = 0;
-    interval = setInterval(() => {
-        let newValue = progress.value + Math.floor(Math.random() * 10) + 1;
-        if (newValue >= 100) {
-            newValue = 100;
-            cancelScan();
-        }
-        console.log('scan progress:', { newValue });
-        progress.value = newValue;
-    }, 1000);
+    scan_progress.value = 0;
 
-    // ScannerService.startScan(
-    //     (stats) => {
-    //         console.log('scan update:', stats);
-    //     },
-    //     (progress) => {
-    //         console.log('scan progress:', { progress });
-    //     },
-    //     (message) => {
-    //         console.log('scan progress:', { message });
-    //         // ScannerService.getFileStats(drive).then((info) => {
-    //         //     console.log('scan complete:', info);
-    //         //     emit('scanComplete', true, info);
-    //         // });
-    //         isScanning.value = false;
-    //     }
-    // ).then(() => {
-    //     console.log('call finished:');
-    //     isScanning.value = false;
-    //     router.push('/main');
-    // });
+    let ret = await ScannerService.startScan(
+        (stats) => {
+            console.log('scan stats:', stats);
+        },
+        (progress) => {
+            // console.log('scan progress:', { progress });
+            isScanning.value = progress.is_scanning;
+            scan_progress.value = progress.total_size / (drive.value.driver?.totalSize ?? Infinity);
+        },
+        (message) => {
+            console.log('scan complete:', { message });
+            isScanning.value = false;
+            router.push('/main');
+        }
+    );
+    console.log('call finished:', ret);
 }
 
-function cancelScan() {
-    clearInterval(interval);
+async function cancelScan() {
+    let ret = await ScannerService.stopScan();
+    console.log('cancelScan:', ret);
     isScanning.value = false;
-    interval = null;
+    router.push('/main');
 }
 
 // 组件挂载时获取可用驱动器
-onMounted(() => {
-    getAvailableDrives();
+onMounted(async () => {
+    let volums = await getAvailableDrives();
+    if (volums.length > 0) {
+        selectDrive(volums[0]);
+    } else {
+        // Add click outside listener
 
-    // Add click outside listener
-
-    // Set initial selected drive if we have a currentPath
-    // Set a default selected drive if no current path
-    selectedDrive.value = isWindows ? 'C:' : isMac ? 'Macintosh HD' : 'Root';
+        // Set initial selected drive if we have a currentPath
+        // Set a default selected drive if no current path
+        let driver = isWindows ? 'C:' : isMac ? 'Macintosh HD' : 'Root';
+        let volumn = createDefaultVolumn({ name: driver });
+        selectedDrive.value = { driver: volumn, path: '/' };
+    }
     // No additional setup needed for dropdown positioning
 });
 
@@ -138,29 +137,81 @@ function scanButtonLabel(): string {
 function scanButtonIcon(): string {
     return isScanning.value ? 'pi pi-times' : 'pi pi-search';
 }
+
+/**
+ * 获取当前的磁盘使用信息
+ */
+function getUsedSize(): string {
+    let driver = selectedDrive.value.driver ?? { totalSize: 0, availableSize: 0 };
+    let usedSize = driver.totalSize - driver.availableSize;
+    return formatFileSize(usedSize);
+}
+
+const pathHome = ref({
+    icon: 'pi pi-home',
+    to: '/',
+    command: () => {
+        selectPath('/');
+    }
+});
+// 假设 path 是从某处获取的当前路径变量
+const pathItems = ref<MenuItem[] | undefined>();
+
+watch(availableDrives, (newValue) => {
+    let driver = selectedDrive.value.driver;
+    if (driver == null && newValue.length > 0) {
+        newValue[0]?.command();
+    }
+    console.log('selectedDrive:', newValue);
+});
+
+// 分割路径并生成 pathItems
+watch(
+    selectedDrive,
+    (newValue) => {
+        let newPath = newValue.path;
+        const paths = newPath.split('/').filter(Boolean); // 过滤空字符串
+        const items: MenuItem[] = [];
+        let currentPath = '';
+
+        paths.forEach((segment) => {
+            currentPath += `/${segment}`;
+            items.push({
+                label: segment,
+                command: () => {
+                    selectPath(currentPath);
+                }
+            });
+        });
+
+        pathItems.value = items;
+    },
+    { immediate: true }
+);
 </script>
 
 <template>
     <div class="flex p-2">
         <div class="flex flex-none">
             <Menu ref="menu" :model="availableDrives" :popup="true" />
-            <Button class="w-full" type="button" :label="selectedDrive" icon="pi pi-angle-down" @click="toggleMenu" />
+            <Button class="w-full" type="button" :label="selectedDrive.driver?.name" icon="pi pi-angle-down"
+                @click="toggleMenu" />
         </div>
 
         <div class="w-full flex items-center mx-4 gap-5">
             <div class="flex flex-none items-center">
                 <i class="fas fa-hdd" style="color: #95a5a6"></i>
-                <span class="ml-2">Total: 2 TB</span>
+                <span class="ml-2">Total: {{ formatFileSize(selectedDrive.driver?.totalSize) }}</span>
             </div>
             <div class="flex flex-none items-center">
                 <i class="fas fa-chart-pie" style="color: #f39c12"></i>
-                <span class="ml-2">Used: 388.82 GB</span>
+                <span class="ml-2">Used: {{ getUsedSize() }}</span>
             </div>
         </div>
 
         <div class="flex w-full items-center place-content-end">
             <div class="w-full" v-if="isScanning">
-                <ProgressBar :value="progress" :showValue="true"></ProgressBar>
+                <ProgressBar :value="scan_progress" :showValue="true"></ProgressBar>
             </div>
 
             <div class="ml-4">
@@ -171,4 +222,5 @@ function scanButtonIcon(): string {
 
         <!-- <Button type="button" label="Scan" @click="$router.push('/uikit/button')" /> -->
     </div>
+    <Breadcrumb class="flex w-full h-10" :home="pathHome" :model="pathItems"></Breadcrumb>
 </template>

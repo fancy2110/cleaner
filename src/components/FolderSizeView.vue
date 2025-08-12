@@ -46,18 +46,7 @@ function getFileName(path: string): string {
     return path.split('/').pop() || path;
 }
 
-function formatSize(bytes: number): string {
-    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-    let size = bytes;
-    let unitIndex = 0;
 
-    while (size >= 1024 && unitIndex < units.length - 1) {
-        size /= 1024;
-        unitIndex++;
-    }
-
-    return `${size.toFixed(2)} ${units[unitIndex]}`;
-}
 
 // 监听路径变化，自动开始扫描
 watch(

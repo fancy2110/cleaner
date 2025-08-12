@@ -22,8 +22,23 @@ export interface FileInfo {
 export interface Volumn {
     path: string;
     name: string;
-    icon: string;
     totalSize: number;
+    availableSize: number;
+}
+
+/**
+ * 创建带有默认值的 Volumn 对象
+ * @param partial 可选的部分 Volumn 属性
+ * @returns 完整的 Volumn 对象
+ */
+export function createDefaultVolumn(partial: Partial<Volumn> = {}): Volumn {
+    return {
+        path: '',
+        name: '',
+        totalSize: 0,
+        availableSize: 0,
+        ...partial
+    };
 }
 
 export const FILE_TYPES = {
@@ -65,7 +80,8 @@ export function getFileType(path: string): FileType {
     return FILE_TYPES.OTHER;
 }
 
-export function formatFileSize(bytes: number): string {
+export function formatFileSize(data: number | undefined | null): string {
+    let bytes = data ?? 0
     if (bytes === 0) return '0 B';
 
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];

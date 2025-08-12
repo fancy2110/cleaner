@@ -100,9 +100,10 @@ fn scan_dir_recursive(path: &str, result: &mut ScanResult) -> Result<(), String>
 #[command]
 async fn start_scan(
     state: State<'_, Mutex<Scanner>>,
+    path: &str,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
-    let path = PathBuf::from("/");
+    let path = PathBuf::from(path);
     debug!(
         "start_folder_scan called with path: {:?}",
         path.to_string_lossy()

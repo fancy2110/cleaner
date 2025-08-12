@@ -162,8 +162,16 @@ impl Scanner {
 
             let worker = tokio::spawn(async move {
                 debug!("Worker {} started", worker_id);
+                let _max_count = 10;
+                let mut count = 0;
 
                 loop {
+                    if count >= _max_count {
+                        break;
+                    }
+
+                    count += 1;
+
                     let item = {
                         let mut queue = queue.lock().await;
                         queue.pop_front()
@@ -175,7 +183,6 @@ impl Scanner {
                             {
                                 let mut prog = progress.lock().await;
                                 prog.current_path = Some(item.path.clone());
-                                prog.is_scanning = true;
                             }
 
                             if let Err(e) =
@@ -234,9 +241,10 @@ impl Scanner {
         tx: &Sender<FileNode>,
         progress: &Arc<Mutex<ScanProgress>>,
     ) -> Result<(), String> {
+        let path = &item.path;
         // Get metadata for the current item
-        let node = match fs::metadata(&item.path).await {
-            io::Result::Ok(metadata) => Self::obtain_file_node(&item, &metadata),
+        let node = match fs::metadata(&path).await {
+            io::Result::Ok(metadata) => Self::obtain_file_node(path.clone(), &metadata),
             io::Result::Err(msg) => return Err(format!("{:?}", msg)),
         };
 
@@ -280,7 +288,13 @@ impl Scanner {
         queue_size == 0
     }
 
-    fn obtain_file_node(item: &ScanQueueItem, metadata: &Metadata) -> FileNode {
+    /**
+     * obtain file node from scan queue item and metadata
+     * @param item
+     * @param metadata
+     * @return
+     */
+    fn obtain_file_node(path: PathBuf, metadata: &Metadata) -> FileNode {
         let modified = metadata
             .modified()
             .ok()
@@ -294,12 +308,8 @@ impl Scanner {
             .map(|d| d.as_secs());
 
         FileNode {
-            path: item.path.clone(),
-            size: if metadata.is_file() {
-                metadata.len()
-            } else {
-                0
-            },
+            path: path,
+            size: metadata.len(),
             is_directory: metadata.is_dir(),
             modified,
             created,
@@ -371,12 +381,20 @@ impl Scanner {
     async fn update_parent_sizes(node: TreeNode) {
         debug!("before update parent sizes");
         if let Ok(node) = node.read() {
-            debug!("begain update parent sizes, {:?}", node.key);
             let new_value = node.get_value().size;
+            debug!(
+                "begain update parent sizes, key:{:?}, size:{:?}",
+                node.key, new_value
+            );
             let mut item = node.get_parent();
             while let Some(parent) = item {
                 if let Ok(mut value) = parent.write() {
                     value.update(|node| node.size += new_value);
+                    debug!(
+                        "try to update parent sizes, key:{:?}, size:{:?}",
+                        value.key,
+                        value.get_value().size
+                    );
                     item = value.get_parent();
                 } else {
                     item = None;

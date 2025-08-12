@@ -5,6 +5,7 @@ use serde::Serialize;
 use crate::service::FileNode;
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FileDetails {
     pub name: String,
     pub path: PathBuf,
@@ -50,6 +51,7 @@ impl Default for FileDetails {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ScanResult {
     pub files: Vec<FileDetails>,
     pub total_size: u64,
@@ -61,6 +63,7 @@ pub struct ScanResult {
  * Volumn Information
  * */
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Volumn {
     pub name: String,
     pub path: PathBuf,
