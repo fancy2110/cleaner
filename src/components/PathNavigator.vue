@@ -187,10 +187,15 @@ const startScan = throttle(function () {
         },
         (message) => {
             console.log('scan progress:', { message });
-            ScannerService.getFileStats(props.currentPath).then((info) => {
-                console.log('scan complete:', info);
-                emit('scanComplete', true, info);
-            });
+            ScannerService.getFileStats(props.currentPath).then(
+                (info) => {
+                    console.log('scan complete:', info);
+                    emit('scanComplete', true, info);
+                },
+                (error) => {
+                    console.log('scan complete error:', error);
+                }
+            );
             isScanning.value = false;
         }
     ).then(() => {

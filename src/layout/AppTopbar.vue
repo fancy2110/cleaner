@@ -98,6 +98,16 @@ async function startScan() {
             console.log('scan complete:', { message });
             isScanning.value = false;
             router.push('/main');
+
+            ScannerService.getFileStats('/').then(
+                (info) => {
+                    console.log('scan complete:', info);
+                    emit('scanComplete', true, info);
+                },
+                (error) => {
+                    console.log('scan complete error:', error);
+                }
+            );
         }
     );
     console.log('call finished:', ret);

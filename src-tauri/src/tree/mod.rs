@@ -8,7 +8,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use tracing::debug;
+use tracing::{debug, warn};
 
 use crate::tree::node::{Node, NodeRef};
 
@@ -48,28 +48,39 @@ where
     pub fn insert_node(&mut self, parent: &K, value: Node<K, T>) -> Result<NodeRef<K, T>, String> {
         let node_key = value.key.clone();
         debug!("enter insert node, for parent");
-        let node = if let Some(parent) = self.nodes.get_mut(parent) {
-            let node = {
-                let mut parent = parent.write().unwrap();
-                parent.add_child(value)
-            };
+        let node = match self.nodes.get_mut(parent) {
+            Some(parent) => {
+                let node = match parent.write() {
+                    Ok(mut parent) => parent.add_child(value),
+                    Err(e) => {
+                        return Err(format!(
+                            "insert node failed, parent write failed, err: {:?}",
+                            e
+                        ));
+                    }
+                };
 
-            {
-                let mut node = node.write().unwrap();
-                node.parent = Some(parent.clone());
+                match node.write() {
+                    Ok(mut node) => {
+                        node.parent = Some(parent.clone());
+                    }
+                    Err(e) => {
+                        return Err(format!(
+                            "insert node failed, parent write failed, err: {:?}",
+                            e
+                        ));
+                    }
+                }
+                node
             }
-            Some(node)
-        } else {
-            None
+            None => {
+                return Err("insert node failed, parent not found".to_string());
+            }
         };
 
         debug!("enter insert node, for node");
-        if let Some(node) = node {
-            self.nodes.insert(node_key, node.clone());
-            Ok(node)
-        } else {
-            Err(format!("node not found"))
-        }
+        self.nodes.insert(node_key, node.clone());
+        Ok(node)
     }
 
     pub fn remove(&mut self, key: &K) -> Result<Vec<NodeRef<K, T>>, String> {

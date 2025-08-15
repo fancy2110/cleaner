@@ -140,8 +140,7 @@ async fn get_folder_stats(
     let scanner = state.lock().await;
     let stats = scanner
         .get_file_node(&PathBuf::from(path))
-        .await
-        .map(|stat| FileDetails::from(stat));
+        .await;
     Ok(stats)
 }
 
@@ -174,7 +173,7 @@ async fn clear_folder_scan(state: State<'_, Mutex<Scanner>>) -> Result<(), Strin
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let scanner = Scanner::new(3); // 3 concurrent workers
+    let scanner = Scanner::new(1); // 3 concurrent workers
 
     let app = tauri::Builder::default()
         .manage(Mutex::new(scanner))
