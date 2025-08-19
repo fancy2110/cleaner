@@ -14,7 +14,8 @@ function handleStartScan(event: string | null) {
 <template>
     <div class="flex flex-col h-full">
         <div class="w-full shadow-md">
-            <app-topbar v-on:path-change="handlePathChange" v-on:start-scan="handleStartScan"></app-topbar>
+            <app-topbar current-path="currentPath" v-on:path-change="handlePathChange"
+                v-on:start-scan="handleStartScan"></app-topbar>
         </div>
 
         <div class="flex-1 overflow-auto shadow-md mt-2">

@@ -65,7 +65,7 @@ fn scan_dir_recursive(path: &str, result: &mut ScanResult) -> Result<(), String>
                 name,
                 path: path_str.clone(),
                 size: metadata.len(),
-                is_dir: metadata.is_dir(),
+                is_directory: metadata.is_dir(),
                 created: created.as_secs(),
                 modified: modified.as_secs(),
                 readonly: metadata.permissions().readonly(),

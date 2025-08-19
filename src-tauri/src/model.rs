@@ -10,7 +10,7 @@ pub struct FileDetails {
     pub name: String,
     pub path: PathBuf,
     pub size: u64,
-    pub is_dir: bool,
+    pub is_directory: bool,
     pub created: u64,
     pub modified: u64,
     pub readonly: bool,
@@ -20,11 +20,17 @@ pub struct FileDetails {
 
 impl FileDetails {
     pub fn from(stat: FileNode) -> FileDetails {
+        let path = stat.path;
+        let name = path
+            .file_name()
+            .map(|name| name.to_string_lossy().to_string())
+            .unwrap_or("/".to_string());
+
         FileDetails {
-            name: "".to_string(),
-            path: stat.path,
+            name: name,
+            path: path,
             size: stat.size,
-            is_dir: stat.is_directory,
+            is_directory: stat.is_directory,
             created: stat.created.unwrap_or_default(),
             modified: stat.modified.unwrap_or_default(),
             readonly: false,
@@ -40,7 +46,7 @@ impl Default for FileDetails {
             name: Default::default(),
             path: Default::default(),
             size: Default::default(),
-            is_dir: Default::default(),
+            is_directory: Default::default(),
             created: Default::default(),
             modified: Default::default(),
             readonly: Default::default(),

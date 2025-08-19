@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, watch } from 'vue';
-import { createDefaultVolumn, FileInfo, Volumn, formatFileSize } from '@/types/fs';
+import { createDefaultVolumn, Volumn, formatFileSize } from '@/types/fs';
 import { useToast } from 'primevue/usetoast';
 import router from '@/router';
 import { FileSystemService } from '@/service/FileSystemService';
@@ -12,7 +12,6 @@ const toast = useToast();
 const emit = defineEmits<{
     (e: 'pathChange', path: string): void;
     (e: 'startScan', path: string): void;
-    (e: 'scanComplete', success: boolean, info: FileInfo | null): void;
 }>();
 
 const showDriveSelector = ref(true);
@@ -86,36 +85,24 @@ async function startScan() {
     scan_progress.value = 0;
 
     let ret = await ScannerService.startScan(
-        (stats) => {
-            console.log('scan stats:', stats);
-        },
+        (stats) => { },
         (progress) => {
             // console.log('scan progress:', { progress });
             isScanning.value = progress.is_scanning;
             scan_progress.value = progress.total_size / (drive.value.driver?.totalSize ?? Infinity);
         },
         (message) => {
-            console.log('scan complete:', { message });
+            console.log('app topbar scan complete:', { message });
             isScanning.value = false;
             router.push('/main');
-
-            ScannerService.getFileStats('/').then(
-                (info) => {
-                    console.log('scan complete:', info);
-                    emit('scanComplete', true, info);
-                },
-                (error) => {
-                    console.log('scan complete error:', error);
-                }
-            );
         }
     );
-    console.log('call finished:', ret);
+    console.log('app topbar call finished:', ret);
 }
 
 async function cancelScan() {
     let ret = await ScannerService.stopScan();
-    console.log('cancelScan:', ret);
+    console.log('app topbar cancelScan:', ret);
     isScanning.value = false;
     router.push('/main');
 }
@@ -172,7 +159,7 @@ watch(availableDrives, (newValue) => {
     if (driver == null && newValue.length > 0) {
         newValue[0]?.command();
     }
-    console.log('selectedDrive:', newValue);
+    console.log('app topbar selectedDrive:', newValue);
 });
 
 // 分割路径并生成 pathItems

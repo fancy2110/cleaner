@@ -1,15 +1,33 @@
 <script setup lang="ts">
-import { NodeService } from '@/service/NodeService';
-import { CustomerService } from '@/service/CustomerService';
 import { useToast } from 'primevue/usetoast';
 
-import { onMounted, ref, watch } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ScannerService } from '@/service/ScannerService';
-import { FileInfo } from '@/types/fs';
+import { FileInfo, formatFileSize, formatDate, formatFileType } from '@/types/fs';
+
+const toast = useToast();
+const { t } = useI18n();
+const files = ref<FileInfo[] | null>(null);
+const subscriber = ref<() => void>();
+
+const onFileListChanged = (data: FileInfo[]) => {
+    console.log('onFileListChanged', data);
+    files.value = data;
+};
 
 onMounted(() => {
-    ScannerService.getCurrentDirFiles().then((data) => (files.value = data));
+    let job = ScannerService.subscribe(onFileListChanged);
+    console.log('onMounted', job);
+    subscriber.value = job;
+});
+
+onUnmounted(() => {
+    let job = subscriber.value;
+    console.log('onUnmounted');
+    if (job) {
+        job();
+    }
 });
 
 // function onRowSelect(value: any) {
@@ -20,57 +38,36 @@ onMounted(() => {
 //     console.log('on un selected item ', value);
 // }
 
-const toast = useToast();
 const onRowSelect = (event: any) => {
-    toast.add({ severity: 'info', summary: 'Product Selected', detail: 'Name: ' + event.data.name, life: 3000 });
+    let file = event.data.path;
+    ScannerService.setCurrentDirectory(file);
 };
-
-const files = ref<FileInfo[] | null>(null);
-
-const { t } = useI18n();
 </script>
 
 <template>
-    <!-- <div class="h-full overflow-auto"> -->
-    <!-- <TreeTable :value="treeTableValue" v-model:selectionKeys="selectedTreeTableValue">
-            <Column field="name" header="Name" :expander="true"></Column>
-            <Column field="size" header="Size"></Column>
-            <Column field="type" header="Type"></Column>
-        </TreeTable> -->
-
-    <DataTable :value="files" selectionMode="single" @rowSelect="onRowSelect" scrollable dataKey="id"
+    <DataTable :value="files" selectionMode="single" @rowSelect="onRowSelect" scrollable dataKey="path"
         scrollHeight="100%" :metaKeySelection="false">
-        <Column field="name" :header="t('fileList.filename')" style="min-width: 200px" frozen class="font-bold">
+        <Column :field="(rowData: FileInfo) => rowData.name" :header="t('fileList.filename')" style="width: 250px">
         </Column>
-        <Column field="id" header="Id" style="min-width: 100px"></Column>
-        <Column field="name" header="Name" style="min-width: 200px"></Column>
-        <Column field="country.name" header="Country" style="min-width: 200px"></Column>
-        <Column field="date" header="Date" style="min-width: 200px"></Column>
-        <Column field="company" header="Company" style="min-width: 200px"></Column>
-        <Column field="status" header="Status" style="min-width: 200px"></Column>
-        <Column field="activity" header="Activity" style="min-width: 200px"></Column>
-        <Column field="representative.name" header="Representative" style="min-width: 200px"></Column>
+        <Column :field="(rowData: FileInfo) => formatFileSize(rowData.size)" header="Size" style="width: 150px">
+        </Column>
+        <Column :field="(rowData: FileInfo) => formatFileType(rowData)" header="Type" style="width: 150px"></Column>
+        <Column :field="(rowData: FileInfo) => formatDate(rowData.created)" header="Created" style="width: 150px">
+        </Column>
+        <Column style="width: 10rem">
+            <template #body>
+                <div class="flex flex-wrap gap-2">
+                    <Button type="button" icon="pi pi-search" rounded />
+                    <Button type="button" icon="pi pi-pencil" rounded severity="success" />
+                </div>
+            </template>
+        </Column>
+        <template #footer>
+            <div class="flex justify-start">
+                <Button icon="pi pi-refresh" label="Reload" severity="warn" />
+            </div>
+        </template>
     </DataTable>
-
-    <!-- <Splitter class="h-full">
-            <SplitterPanel :size="30" :minSize="30">
-                <div class="p-3 aspect-1/1 overflow-auto place-content-center">
-                    <Chart class="w-full place-content-center" type="pie" :data="pieData" :options="pieOptions">
-                    </Chart>
-                </div>
-            </SplitterPanel>
-            <SplitterPanel :size="70" :minSize="60">
-                <div class="p-3 overflow-auto">
-                    <TreeTable :value="treeTableValue" selectionMode="checkbox"
-                        v-model:selectionKeys="selectedTreeTableValue">
-                        <Column field="name" header="Name" :expander="true"></Column>
-                        <Column field="size" header="Size"></Column>
-                        <Column field="type" header="Type"></Column>
-                    </TreeTable>
-                </div>
-            </SplitterPanel>
-        </Splitter> -->
-    <!-- </div> -->
 </template>
 
 <style lang="css" scoped>

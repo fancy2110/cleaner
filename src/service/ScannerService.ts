@@ -15,8 +15,11 @@ export interface ScanResult {
     progress: ScanProgress;
 }
 
+// eslint-disable-next-line no-unused-vars
 export type ScanUpdateCallback = (stats: FileInfo) => void;
+// eslint-disable-next-line no-unused-vars
 export type ScanProgressCallback = (progress: ScanProgress) => void;
+// eslint-disable-next-line no-unused-vars
 export type ScanCompleteCallback = (message: string) => void;
 
 export class ScannerService {
@@ -205,7 +208,42 @@ export class ScannerService {
     }
 
     static async getCurrentDirFiles(): Promise<FileInfo[]> {
-        return Promise.resolve(this.getData().slice(0, 200));
+        // 实际应用中，这里应该根据 currentDirectory 从文件系统获取文件列表
+        // 这里为了演示，仍然使用模拟数据，但添加了目录过滤逻辑
+        const data = await this.getFileStats(this.currentDirectory);
+        return data?.children || [];
+    }
+
+    // 当前选中的目录
+    private static currentDirectory: string = '/';
+
+    // 订阅者列表
+    // eslint-disable-next-line no-unused-vars
+    private static subscribers: Array<(files: FileInfo[]) => void> = [];
+
+    // 设置当前目录
+    static setCurrentDirectory(path: string): void {
+        this.currentDirectory = path;
+        // 通知所有订阅者
+        this.notifySubscribers();
+    }
+
+    // 订阅文件列表变化
+    // eslint-disable-next-line no-unused-vars
+    static subscribe(callback: (files: FileInfo[]) => void): () => void {
+        this.subscribers.push(callback);
+        // 立即调用一次回调，提供当前文件列表
+        this.getCurrentDirFiles().then((files) => callback(files));
+        // 返回取消订阅的函数
+        return () => {
+            this.subscribers = this.subscribers.filter((cb) => cb !== callback);
+        };
+    }
+
+    // 通知所有订阅者
+    private static async notifySubscribers(): Promise<void> {
+        const files = await this.getCurrentDirFiles();
+        this.subscribers.forEach((callback) => callback(files));
     }
 }
 
