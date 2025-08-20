@@ -1,22 +1,25 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 import { createDefaultVolumn, Volumn, formatFileSize } from '@/types/fs';
-import { useToast } from 'primevue/usetoast';
-import router from '@/router';
 import { FileSystemService } from '@/service/FileSystemService';
 import { MenuItem } from 'primevue/menuitem';
-import { ScannerService } from '@/service/ScannerService';
+import { ScannerService, ScanProgress } from '@/service/ScannerService';
 
-const toast = useToast();
+const props = defineProps<{
+    currentPath: string | null;
+    scanProgress: ScanProgress | null;
+}>();
 // Define custom events for use outside the component
 const emit = defineEmits<{
-    (e: 'pathChange', path: string): void;
-    (e: 'startScan', path: string): void;
+    pathChange: [path: string]; // named tuple syntax
+    startScan: [path: string]; // named tuple syntax
+    cancelScan: []; // named tuple syntax
 }>();
 
 const showDriveSelector = ref(true);
 const selectedDrive = ref<{ driver: Volumn | null; path: string }>({ driver: null, path: '' });
 const availableDrives = ref<MenuItem[]>([]);
+const isScanning = ref(false);
 
 // Platform detection utility
 const isWindows = navigator.userAgent.toUpperCase().indexOf('WIN') >= 0 || navigator.platform.toUpperCase().indexOf('WIN') >= 0;
@@ -68,43 +71,27 @@ function selectPath(path: string) {
     showDriveSelector.value = false;
 }
 
-const menu = ref<Event | null>(null);
+const menu = ref();
 
 function toggleMenu(event: Event | null) {
+    if (event == null) return;
     menu.value.toggle(event);
 }
 
-const isScanning = ref(false);
 const scan_progress = ref(0);
 
 // 开始扫描
 async function startScan() {
     const drive = selectedDrive;
     if (!drive.value || isScanning.value) return;
-    isScanning.value = true;
     scan_progress.value = 0;
-
-    let ret = await ScannerService.startScan(
-        (stats) => { },
-        (progress) => {
-            // console.log('scan progress:', { progress });
-            isScanning.value = progress.is_scanning;
-            scan_progress.value = progress.total_size / (drive.value.driver?.totalSize ?? Infinity);
-        },
-        (message) => {
-            console.log('app topbar scan complete:', { message });
-            isScanning.value = false;
-            router.push('/main');
-        }
-    );
-    console.log('app topbar call finished:', ret);
+    emit('startScan', drive.value.path);
 }
 
 async function cancelScan() {
     let ret = await ScannerService.stopScan();
     console.log('app topbar cancelScan:', ret);
-    isScanning.value = false;
-    router.push('/main');
+    emit('cancelScan');
 }
 
 // 组件挂载时获取可用驱动器
@@ -151,16 +138,26 @@ const pathHome = ref({
         selectPath('/');
     }
 });
+/**
+ * 更新扫描进度
+ */
+watch(
+    () => props,
+    (newValue) => {
+        let progress = newValue.scanProgress;
+        if (progress == null) return;
+
+        isScanning.value = progress.is_scanning;
+        let driver = selectedDrive.value.driver;
+        if (progress.is_scanning) {
+            scan_progress.value = progress.total_size / (driver?.totalSize ?? Infinity);
+        } else {
+            scan_progress.value = 0;
+        }
+    }
+);
 // 假设 path 是从某处获取的当前路径变量
 const pathItems = ref<MenuItem[] | undefined>();
-
-watch(availableDrives, (newValue) => {
-    let driver = selectedDrive.value.driver;
-    if (driver == null && newValue.length > 0) {
-        newValue[0]?.command();
-    }
-    console.log('app topbar selectedDrive:', newValue);
-});
 
 // 分割路径并生成 pathItems
 watch(

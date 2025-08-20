@@ -178,29 +178,7 @@ function throttle(fn: Function, delay: number) {
 const startScan = throttle(function () {
     if (!props.currentPath || isScanning.value) return;
     isScanning.value = true;
-    // ScannerService.startScan(
-    //     (stats) => {
-    //         console.log('scan update:', stats);
-    //     },
-    //     (progress) => {
-    //         console.log('scan progress:', { progress });
-    //     },
-    //     (message) => {
-    //         console.log('scan progress:', { message });
-    //         ScannerService.getFileStats(props.currentPath).then(
-    //             (info) => {
-    //                 console.log('scan complete:', info);
-    //                 emit('scanComplete', true, info);
-    //             },
-    //             (error) => {
-    //                 console.log('scan complete error:', error);
-    //             }
-    //         );
-    //         isScanning.value = false;
-    //     }
-    // ).then(() => {
-    //     console.log('call finished:');
-    // });
+
 }, 500);
 
 // 获取切断的路径名（用于显示在面包屑中）
