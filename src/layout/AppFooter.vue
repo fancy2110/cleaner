@@ -1,11 +1,5 @@
-<script setup lang="ts">
-import AppConfigurator from './AppConfigurator.vue';
-import { FileInfo, Volumn } from '@/types/fs';
-import { ref } from 'vue';
-import { useI18n } from 'vue-i18n';
-
-const { t } = useI18n();
-</script>
+<!-- eslint-disable vue/no-parsing-error -->
+<script setup lang="ts"></script>
 
 <template>
     <div class="items-center w-full gap-2 p-2 place-content-end">
@@ -21,14 +15,16 @@ const { t } = useI18n();
                 <Button icon="pi pi-trash" severity="secondary" rounded text @click="$router.push('/pages/empty')" />
             </template>
 
-            <p class="leading-normal m-0 w-full">
-                <li class="ml-10 mr-10">
-                    <div class="flex justify-between">
-                        <p>File1</p>
-                        <p>13.MB</p>
-                    </div>
-                </li>
-            </p>
+            <template #default>
+                <!-- <p class="leading-normal m-0 w-full">
+                    <li class="ml-10 mr-10">
+                        <div class="flex justify-between">
+                            <p>File1</p>
+                            <p>13.MB</p>
+                        </div>
+                    </li>
+                </p> -->
+            </template>
         </Panel>
     </div>
 </template>

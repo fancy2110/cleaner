@@ -1,23 +1,31 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, watch } from 'vue';
-import { createDefaultVolumn, Volumn, formatFileSize } from '@/types/fs';
+import { createDefaultVolumn, Volumn, formatFileSize, FileInfo } from '@/types/fs';
 import { FileSystemService } from '@/service/FileSystemService';
 import { MenuItem } from 'primevue/menuitem';
 import { ScannerService, ScanProgress } from '@/service/ScannerService';
 
 const props = defineProps<{
-    currentPath: string | null;
+    path: string | null;
     scanProgress: ScanProgress | null;
 }>();
 // Define custom events for use outside the component
 const emit = defineEmits<{
     pathChange: [path: string]; // named tuple syntax
-    startScan: [path: string]; // named tuple syntax
+    startScan: [driver: Volumn]; // named tuple syntax
     cancelScan: []; // named tuple syntax
 }>();
 
+const subscriber = ref<() => void>();
+const onFileListChanged = (data: FileInfo | null) => {
+    console.log('onFileListChanged', data);
+    currentPath.value = data?.path || null;
+};
+
 const showDriveSelector = ref(true);
-const selectedDrive = ref<{ driver: Volumn | null; path: string }>({ driver: null, path: '' });
+const selectedDrive = ref<Volumn | null>(null);
+//当前的目录
+const currentPath = ref<string | null>(null);
 const availableDrives = ref<MenuItem[]>([]);
 const isScanning = ref(false);
 
@@ -58,17 +66,17 @@ async function getAvailableDrives(): Promise<Volumn[]> {
 // 选择驱动器
 function selectDrive(volumn: Volumn) {
     console.log('selectDrive:', volumn);
-    selectedDrive.value = { driver: volumn, path: volumn.path };
+    selectedDrive.value = volumn;
     emit('pathChange', volumn.path);
     showDriveSelector.value = false;
+    currentPath.value = volumn.path;
 }
 
 // 选择驱动器
 function selectPath(path: string) {
-    let driver = selectedDrive.value.driver;
-    selectedDrive.value = { driver: driver, path: path };
     emit('pathChange', path);
     showDriveSelector.value = false;
+    currentPath.value = path;
 }
 
 const menu = ref();
@@ -79,13 +87,14 @@ function toggleMenu(event: Event | null) {
 }
 
 const scan_progress = ref(0);
+const last_progress = ref(0);
 
 // 开始扫描
 async function startScan() {
     const drive = selectedDrive;
     if (!drive.value || isScanning.value) return;
     scan_progress.value = 0;
-    emit('startScan', drive.value.path);
+    emit('startScan', drive.value);
 }
 
 async function cancelScan() {
@@ -106,13 +115,22 @@ onMounted(async () => {
         // Set a default selected drive if no current path
         let driver = isWindows ? 'C:' : isMac ? 'Macintosh HD' : 'Root';
         let volumn = createDefaultVolumn({ name: driver });
-        selectedDrive.value = { driver: volumn, path: '/' };
+        selectDrive(volumn);
     }
-    // No additional setup needed for dropdown positioning
+
+    let job = ScannerService.subscribe(onFileListChanged);
+    console.log('onMounted', job);
+    currentPath.value = props.path;
+    subscriber.value = job;
 });
 
-// 组件卸载时移除事件监听器
-onUnmounted(() => { });
+onUnmounted(() => {
+    let job = subscriber.value;
+    console.log('onUnmounted');
+    if (job) {
+        job();
+    }
+});
 
 function scanButtonLabel(): string {
     return isScanning.value ? 'Cancel' : 'Search';
@@ -126,7 +144,7 @@ function scanButtonIcon(): string {
  * 获取当前的磁盘使用信息
  */
 function getUsedSize(): string {
-    let driver = selectedDrive.value.driver ?? { totalSize: 0, availableSize: 0 };
+    let driver = selectedDrive.value ?? { totalSize: 0, availableSize: 0 };
     let usedSize = driver.totalSize - driver.availableSize;
     return formatFileSize(usedSize);
 }
@@ -138,21 +156,29 @@ const pathHome = ref({
         selectPath('/');
     }
 });
+
 /**
  * 更新扫描进度
  */
 watch(
-    () => props,
+    () => props.scanProgress,
     (newValue) => {
-        let progress = newValue.scanProgress;
+        let progress = newValue;
         if (progress == null) return;
 
         isScanning.value = progress.is_scanning;
-        let driver = selectedDrive.value.driver;
+        let driver = selectedDrive.value;
+        let total_size = driver?.totalSize ?? Infinity;
+        let new_progress = Math.round((progress.scaned_size * 100) / total_size);
         if (progress.is_scanning) {
-            scan_progress.value = progress.total_size / (driver?.totalSize ?? Infinity);
+            scan_progress.value = new_progress;
         } else {
             scan_progress.value = 0;
+        }
+
+        if (new_progress - last_progress.value > 0.0001) {
+            console.log('app-topbar scanProgress', scan_progress.value, total_size, progress.scaned_size);
+            last_progress.value = new_progress;
         }
     }
 );
@@ -161,23 +187,32 @@ const pathItems = ref<MenuItem[] | undefined>();
 
 // 分割路径并生成 pathItems
 watch(
-    selectedDrive,
-    (newValue) => {
-        let newPath = newValue.path;
+    currentPath,
+    (newPath) => {
+        console.log('app toolbar path changed', newPath);
+        if (newPath == null) {
+            pathItems.value = [];
+            return;
+        }
+
         const paths = newPath.split('/').filter(Boolean); // 过滤空字符串
         const items: MenuItem[] = [];
         let currentPath = '';
 
         paths.forEach((segment) => {
             currentPath += `/${segment}`;
+            console.log('app bar path', currentPath);
+            let current = currentPath;
             items.push({
                 label: segment,
                 command: () => {
-                    selectPath(currentPath);
+                    console.log('app bar select path', current);
+                    selectPath(current);
                 }
             });
         });
 
+        console.log('app toolbar spilt complete', items);
         pathItems.value = items;
     },
     { immediate: true }
@@ -188,14 +223,14 @@ watch(
     <div class="flex p-2">
         <div class="flex flex-none">
             <Menu ref="menu" :model="availableDrives" :popup="true" />
-            <Button class="w-full" type="button" :label="selectedDrive.driver?.name" icon="pi pi-angle-down"
+            <Button class="w-full" type="button" :label="selectedDrive?.name" icon="pi pi-angle-down"
                 @click="toggleMenu" />
         </div>
 
         <div class="w-full flex items-center mx-4 gap-5">
             <div class="flex flex-none items-center">
                 <i class="fas fa-hdd" style="color: #95a5a6"></i>
-                <span class="ml-2">Total: {{ formatFileSize(selectedDrive.driver?.totalSize) }}</span>
+                <span class="ml-2">Total: {{ formatFileSize(selectedDrive?.totalSize) }}</span>
             </div>
             <div class="flex flex-none items-center">
                 <i class="fas fa-chart-pie" style="color: #f39c12"></i>

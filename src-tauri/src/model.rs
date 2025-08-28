@@ -9,7 +9,7 @@ use crate::service::FileNode;
 pub struct FileDetails {
     pub name: String,
     pub path: PathBuf,
-    pub size: u64,
+    pub size: usize,
     pub is_directory: bool,
     pub created: u64,
     pub modified: u64,

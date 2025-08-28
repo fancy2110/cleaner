@@ -1,19 +1,16 @@
 <script setup lang="ts">
-import { useToast } from 'primevue/usetoast';
-
 import { onMounted, onUnmounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ScannerService } from '@/service/ScannerService';
 import { FileInfo, formatFileSize, formatDate, formatFileType } from '@/types/fs';
 
-const toast = useToast();
 const { t } = useI18n();
 const files = ref<FileInfo[] | null>(null);
 const subscriber = ref<() => void>();
 
-const onFileListChanged = (data: FileInfo[]) => {
+const onFileListChanged = (data: FileInfo | null) => {
     console.log('onFileListChanged', data);
-    files.value = data;
+    files.value = data?.children || [];
 };
 
 onMounted(() => {

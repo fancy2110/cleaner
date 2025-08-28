@@ -5,7 +5,7 @@ import { listen, UnlistenFn } from '@tauri-apps/api/event';
 export interface ScanProgress {
     total_files: number;
     total_directories: number;
-    total_size: number;
+    scaned_size: number;
     current_path?: string;
     is_scanning: boolean;
 }
@@ -207,11 +207,11 @@ export class ScannerService {
         return date.toLocaleString();
     }
 
-    static async getCurrentDirFiles(): Promise<FileInfo[]> {
+    static async getCurrentDirFiles(): Promise<FileInfo | null> {
         // 实际应用中，这里应该根据 currentDirectory 从文件系统获取文件列表
         // 这里为了演示，仍然使用模拟数据，但添加了目录过滤逻辑
         const data = await this.getFileStats(this.currentDirectory);
-        return data?.children || [];
+        return data;
     }
 
     // 当前选中的目录
@@ -219,7 +219,7 @@ export class ScannerService {
 
     // 订阅者列表
     // eslint-disable-next-line no-unused-vars
-    private static subscribers: Array<(files: FileInfo[]) => void> = [];
+    private static subscribers: Array<(currentFile: FileInfo | null) => void> = [];
 
     // 设置当前目录
     static setCurrentDirectory(path: string): void {
@@ -230,7 +230,7 @@ export class ScannerService {
 
     // 订阅文件列表变化
     // eslint-disable-next-line no-unused-vars
-    static subscribe(callback: (files: FileInfo[]) => void): () => void {
+    static subscribe(callback: (currentDirectory: FileInfo | null) => void): () => void {
         this.subscribers.push(callback);
         // 立即调用一次回调，提供当前文件列表
         this.getCurrentDirFiles().then((files) => callback(files));

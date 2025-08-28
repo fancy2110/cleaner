@@ -18,14 +18,13 @@ use tokio::{
     task::JoinHandle,
 };
 use tracing::{debug, error, info, warn};
-use tracing_subscriber::fmt::format;
 
 use crate::{model::FileDetails, tree::node::Node, tree::Tree};
 
 #[derive(Debug, Clone)]
 pub struct FileNode {
     pub path: PathBuf,
-    pub size: u64,
+    pub size: usize,
     pub is_directory: bool,
     pub modified: Option<u64>,
     pub created: Option<u64>,
@@ -61,13 +60,18 @@ struct ScanQueueItem {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScanProgress {
-    pub total_files: usize,
-    pub total_directories: usize,
-    pub total_size: u64,
     pub scaned_files: usize,
     pub scaned_size: usize,
     pub current_path: Option<PathBuf>,
     pub is_scanning: bool,
+}
+impl ScanProgress {
+    fn reset(&mut self) {
+        self.scaned_files = 0;
+        self.scaned_size = 0;
+        self.current_path = None;
+        self.is_scanning = false;
+    }
 }
 
 type FileTree = Arc<Mutex<Tree<PathBuf, FileNode>>>;
@@ -98,9 +102,6 @@ impl Scanner {
             workers: Vec::new(),
             concurrency: concurrency,
             progress: Arc::new(Mutex::new(ScanProgress {
-                total_files: 0,
-                total_directories: 0,
-                total_size: 0,
                 scaned_files: 0,
                 scaned_size: 0,
                 current_path: None,
@@ -130,26 +131,32 @@ impl Scanner {
     /**
      * begin scane path
      */
-    pub async fn start(&mut self) -> mpsc::Receiver<FileNode> {
+    pub async fn start(&mut self) -> mpsc::Receiver<ScanProgress> {
         let (tx, rx) = mpsc::channel(1000);
         // Clear existing workers
         self.workers.clear();
 
-        //process root node to provider initial queue items
+        // Process root node to provide initial queue items
+        let queue = self.queue.clone();
+        let files = self.files.lock().await;
+
         {
-            let queue = self.queue.clone();
-            let files = self.files.lock().await;
-            let path = files.root.as_ref().map_or(None, |node| {
-                let node = node.read();
-                if let Ok(path) = node {
-                    Some(path.key.clone())
+            let path = if let Some(root) = files.root.as_ref() {
+                let mut prog = self.progress.lock().await;
+                if let Ok(node) = root.read() {
+                    let file = node.get_value();
+                    prog.current_path = Some(file.path.clone());
+                    prog.scaned_size = file.size;
+                    prog.is_scanning = true;
+                    file.path.clone()
                 } else {
-                    None
+                    return rx;
                 }
-            });
-            if let Some(path) = path {
-                let _ = Self::process_directory(path, &queue).await;
+            } else {
+                return rx;
             };
+
+            let _ = Self::process_directory(path, &queue).await;
         }
 
         let finish_count = Arc::new(AtomicUsize::new(self.concurrency));
@@ -163,7 +170,7 @@ impl Scanner {
 
             let worker = tokio::spawn(async move {
                 debug!("Worker {} started", worker_id);
-                let _max_count = 1000;
+                let _max_count = 1000000;
                 let mut count = 0;
 
                 loop {
@@ -173,6 +180,7 @@ impl Scanner {
 
                     count += 1;
 
+                    // Create a new scope for queue lock to ensure it's released before processing
                     let item = {
                         let mut queue = queue.lock().await;
                         queue.pop_front()
@@ -180,12 +188,13 @@ impl Scanner {
 
                     match item {
                         Some(item) => {
-                            // Update current scanning path
+                            // Update current scanning path in a separate scope
                             {
                                 let mut prog = progress.lock().await;
                                 prog.current_path = Some(item.path.clone());
                             }
 
+                            // Process the item with all locks released
                             if let Err(e) =
                                 Self::process_scan_item(&tree, item, &queue, &tx, &progress).await
                             {
@@ -202,13 +211,15 @@ impl Scanner {
                     }
                 }
 
-                // Worker finished
-                let mut prog = progress.lock().await;
-                prog.is_scanning = false;
-                prog.current_path = None;
+                // Worker finished - update progress in a separate scope
+                {
+                    let mut prog = progress.lock().await;
+                    prog.is_scanning = false;
+                    prog.current_path = None;
+                }
 
                 let count = finish_count.fetch_sub(1, Ordering::Relaxed);
-                debug!("current runing workers {}", count - 1);
+                debug!("current running workers {}", count - 1);
             });
 
             self.workers.push(worker);
@@ -239,7 +250,7 @@ impl Scanner {
         tree: &FileTree,
         item: ScanQueueItem,
         queue: &Arc<Mutex<VecDeque<ScanQueueItem>>>,
-        tx: &Sender<FileNode>,
+        tx: &Sender<ScanProgress>,
         progress: &Arc<Mutex<ScanProgress>>,
     ) -> Result<(), String> {
         let path = &item.path;
@@ -310,7 +321,7 @@ impl Scanner {
 
         FileNode {
             path: path,
-            size: metadata.len(),
+            size: metadata.len() as usize,
             is_directory: metadata.is_dir(),
             modified,
             created,
@@ -319,23 +330,19 @@ impl Scanner {
 
     async fn notify_stats(
         node: FileNode,
-        tx: &Sender<FileNode>,
+        tx: &Sender<ScanProgress>,
         progress: &Arc<Mutex<ScanProgress>>,
     ) -> std::io::Result<()> {
         debug!("before notify files info, path: {:?}", node);
         // Update progress
-        {
-            let mut prog = progress.lock().await;
-            if node.is_directory {
-                prog.total_directories += 1;
-            } else {
-                prog.total_files += 1;
-                prog.total_size += node.size;
-            }
-        }
+        let mut prog = progress.lock().await;
+        prog.scaned_files += 1;
+        prog.scaned_size = node.size;
+        let mut new_progress = prog.clone();
+        new_progress.current_path = Some(node.path.clone());
 
         // Send update through channel
-        if let Err(e) = tx.send(node.clone()).await {
+        if let Err(e) = tx.send(new_progress).await {
             error!("Error sending stats update: {}", e);
         }
         debug!("after notify files info, path: {:?}", node);
@@ -462,15 +469,8 @@ impl Scanner {
             FileNode::new(PathBuf::from("/"), true),
         )));
 
-        *self.progress.lock().await = ScanProgress {
-            total_files: 0,
-            total_directories: 0,
-            total_size: 0,
-            scaned_files: 0,
-            scaned_size: 0,
-            current_path: None,
-            is_scanning: false,
-        };
+        let mut progress = self.progress.lock().await;
+        progress.reset();
     }
 
     pub async fn is_scanning(&self) -> bool {

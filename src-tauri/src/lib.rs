@@ -15,87 +15,7 @@ use service::{ScanProgress, Scanner};
 
 use driver::get_available_drivers;
 
-use model::{FileDetails, ScanResult};
-
-#[command]
-async fn scan_directory(path: String) -> Result<ScanResult, String> {
-    let mut result = ScanResult {
-        files: Vec::new(),
-        total_size: 0,
-        total_files: 0,
-        total_dirs: 0,
-    };
-
-    match scan_dir_recursive(&path, &mut result) {
-        Ok(_) => Ok(result),
-        Err(e) => Err(format!("扫描目录出错: {}", e)),
-    }
-}
-
-fn scan_dir_recursive(path: &str, result: &mut ScanResult) -> Result<(), String> {
-    if let Ok(entries) = fs::read_dir(path) {
-        for entry in entries {
-            let entry = entry.map_err(|e| format!("读取目录条目时出错: {}", e))?;
-            let path = entry.path();
-            let metadata = entry
-                .metadata()
-                .map_err(|e| format!("无法获取元数据: {}", e))?;
-
-            let name = path
-                .file_name()
-                .ok_or_else(|| "无法获取文件名".to_string())?
-                .to_string_lossy()
-                .into_owned();
-
-            let created = metadata
-                .created()
-                .unwrap_or_else(|_| SystemTime::now())
-                .elapsed()
-                .unwrap_or_default();
-
-            let modified = metadata
-                .modified()
-                .unwrap_or_else(|_| SystemTime::now())
-                .elapsed()
-                .unwrap_or_default();
-
-            let path_str = path;
-
-            let file_details = FileDetails {
-                name,
-                path: path_str.clone(),
-                size: metadata.len(),
-                is_directory: metadata.is_dir(),
-                created: created.as_secs(),
-                modified: modified.as_secs(),
-                readonly: metadata.permissions().readonly(),
-                file_type: if metadata.is_dir() {
-                    "directory".to_string()
-                } else {
-                    if metadata.file_type().is_file() {
-                        "file".to_string()
-                    } else if metadata.file_type().is_symlink() {
-                        "symlink".to_string()
-                    } else {
-                        "unknown".to_string()
-                    }
-                },
-                children: None,
-            };
-
-            if metadata.is_dir() {
-                result.total_dirs += 1;
-                result.files.push(file_details);
-                // scan_dir_recursive(&path_str, result)?;
-            } else {
-                result.total_files += 1;
-                result.total_size += metadata.len();
-                result.files.push(file_details);
-            }
-        }
-    }
-    Ok(())
-}
+use model::FileDetails;
 
 #[command]
 async fn start_scan(
@@ -109,19 +29,20 @@ async fn start_scan(
         path.to_string_lossy()
     );
 
-    let mut scanner = state.lock().await;
+    let mut _scanner = state.lock().await;
 
     // Clear previous scan data
-    scanner.clear().await;
+    _scanner.clear().await;
 
     // Start scanning and get receiver
-    let mut rx = scanner.start().await;
+    let mut rx = _scanner.start().await;
 
     // Spawn task to handle file updates
     tokio::spawn(async move {
         while let Some(stats) = rx.recv().await {
             // Emit update event to frontend
-            let _ = app_handle.emit("folder-scan-update", &FileDetails::from(stats));
+
+            let _ = app_handle.emit("folder-scan-progress", stats);
         }
 
         debug!("all scan job finished");
@@ -138,9 +59,7 @@ async fn get_folder_stats(
     state: State<'_, Mutex<Scanner>>,
 ) -> Result<Option<FileDetails>, String> {
     let scanner = state.lock().await;
-    let stats = scanner
-        .get_file_node(&PathBuf::from(path))
-        .await;
+    let stats = scanner.get_file_node(&PathBuf::from(path)).await;
     Ok(stats)
 }
 
