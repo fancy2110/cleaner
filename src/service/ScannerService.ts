@@ -21,11 +21,21 @@ export type ScanUpdateCallback = (stats: FileInfo) => void;
 export type ScanProgressCallback = (progress: ScanProgress) => void;
 // eslint-disable-next-line no-unused-vars
 export type ScanCompleteCallback = (message: string) => void;
+// 回收站监听器
+// eslint-disable-next-line no-unused-vars
+export type TrashListener = (files: FileInfo[], size: number) => void;
 
 export class ScannerService {
     private static updateListeners: UnlistenFn[] = [];
     private static progressListeners: UnlistenFn[] = [];
     private static completeListeners: UnlistenFn[] = [];
+
+    /**
+     * 待删除的文件
+     */
+    private static filesInTrash: Record<string, FileInfo> = {};
+    private static trashSize: number = 0;
+    private static trashListeners: TrashListener[] = [];
 
     /**
      * 开始扫描文件夹
@@ -148,6 +158,24 @@ export class ScannerService {
         }
     }
 
+    static async addFileToTrash(file: FileInfo): Promise<void> {
+        try {
+            if (this.filesInTrash[file.path]) {
+                return;
+            }
+
+            this.filesInTrash[file.path] = file;
+            this.trashSize += file.size;
+
+            const files = Object.values(this.filesInTrash);
+
+            this.notifyTrashListeners(files, this.trashSize);
+        } catch (error) {
+            console.error('添加文件到回收站失败:', error);
+            throw error;
+        }
+    }
+
     /**
      * 清理扫描数据
      */
@@ -244,6 +272,17 @@ export class ScannerService {
     private static async notifySubscribers(): Promise<void> {
         const files = await this.getCurrentDirFiles();
         this.subscribers.forEach((callback) => callback(files));
+    }
+
+    static subscribeTrash(callback: TrashListener): () => void {
+        this.trashListeners.push(callback);
+        return () => {
+            this.trashListeners = this.trashListeners.filter((cb) => cb !== callback);
+        };
+    }
+
+    static notifyTrashListeners(files: FileInfo[], size: number): void {
+        this.trashListeners.forEach((callback) => callback(files, size));
     }
 }
 

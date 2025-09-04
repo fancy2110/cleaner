@@ -170,7 +170,7 @@ impl Scanner {
 
             let worker = tokio::spawn(async move {
                 debug!("Worker {} started", worker_id);
-                let _max_count = 1000000;
+                let _max_count = 10000;
                 let mut count = 0;
 
                 loop {
@@ -198,7 +198,7 @@ impl Scanner {
                             if let Err(e) =
                                 Self::process_scan_item(&tree, item, &queue, &tx, &progress).await
                             {
-                                error!("Error processing item: {}", e);
+                                warn!("Error processing item: {}", e);
                             }
                         }
                         None => {
@@ -441,13 +441,17 @@ impl Scanner {
                 let mut current = FileDetails::from(node.get_value().clone());
                 let sub_files = node.children.iter();
                 debug!("sub files count:{}", node.children.len());
-                let childrens = sub_files.filter_map(|node| {
-                    node.read()
-                        .map(|node| FileDetails::from(node.get_value().clone()))
-                        .ok()
-                });
+                let mut childrens = sub_files
+                    .filter_map(|node| {
+                        node.read()
+                            .map(|node| FileDetails::from(node.get_value().clone()))
+                            .ok()
+                    })
+                    .collect::<Vec<_>>();
 
-                current.children = Some(childrens.collect());
+                childrens.sort_by(|a, b| b.size.cmp(&a.size));
+
+                current.children = Some(childrens);
                 Ok(current)
             })
             .ok();

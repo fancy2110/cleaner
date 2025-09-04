@@ -106,7 +106,7 @@ export function formatDate(data: number | undefined | null): string {
         return '';
     }
 
-    const date = new Date(data);
+    const date = new Date(data * 1000);
 
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');

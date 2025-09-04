@@ -27,13 +27,10 @@ onUnmounted(() => {
     }
 });
 
-// function onRowSelect(value: any) {
-//     console.log('on selected item ', value);
-// }
-
-// function onRowUnSelect(value: any) {
-//     console.log('on un selected item ', value);
-// }
+function addFileToTrash(value: FileInfo) {
+    ScannerService.addFileToTrash(value);
+    console.log('on selected item ', value);
+}
 
 const onRowSelect = (event: any) => {
     let file = event.data.path;
@@ -52,10 +49,10 @@ const onRowSelect = (event: any) => {
         <Column :field="(rowData: FileInfo) => formatDate(rowData.created)" header="Created" style="width: 150px">
         </Column>
         <Column style="width: 10rem">
-            <template #body>
+            <template #body="slotProps">
                 <div class="flex flex-wrap gap-2">
-                    <Button type="button" icon="pi pi-search" rounded />
-                    <Button type="button" icon="pi pi-pencil" rounded severity="success" />
+                    <Button type="button" icon="pi pi-trash" rounded severity="success"
+                        v-on:click="addFileToTrash(slotProps.data)" />
                 </div>
             </template>
         </Column>
