@@ -3,6 +3,7 @@ import { onMounted, onUnmounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ScannerService } from '@/service/ScannerService';
 import { FileInfo, formatFileSize, formatDate, formatFileType } from '@/types/fs';
+import File from '@/views/uikit/File.vue';
 
 const { t } = useI18n();
 const files = ref<FileInfo[] | null>(null);
@@ -41,8 +42,12 @@ const onRowSelect = (event: any) => {
 <template>
     <DataTable :value="files" selectionMode="single" @rowSelect="onRowSelect" scrollable dataKey="path"
         scrollHeight="100%" :metaKeySelection="false">
-        <Column :field="(rowData: FileInfo) => rowData.name" :header="t('fileList.filename')" style="width: 250px">
+        <Column :header="t('fileList.filename')" style="width: 250px">
+            <template #body="slotProps">
+                <File :file="slotProps.data" />
+            </template>
         </Column>
+
         <Column :field="(rowData: FileInfo) => formatFileSize(rowData.size)" header="Size" style="width: 150px">
         </Column>
         <Column :field="(rowData: FileInfo) => formatFileType(rowData)" header="Type" style="width: 150px"></Column>
@@ -64,12 +69,4 @@ const onRowSelect = (event: any) => {
     </DataTable>
 </template>
 
-<style lang="css" scoped>
-.p-chart {
-    display: flex;
-}
-
-.p-splitter {
-    border-radius: 0;
-}
-</style>
+<style lang="scss" scoped></style>

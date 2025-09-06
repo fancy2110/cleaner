@@ -1,26 +1,5 @@
 /* main.css - Global styles for the File Scanner app */
-
 :root {
-  /* Color variables */
-  --primary-color: #2196F3;
-  --primary-dark: #1976D2;
-  --primary-light: #BBDEFB;
-  --secondary-color: #FF9800;
-  --secondary-dark: #F57C00;
-  --secondary-light: #FFE0B2;
-
-  --success-color: #4CAF50;
-  --error-color: #F44336;
-  --warning-color: #FFC107;
-  --info-color: #2196F3;
-
-  --text-primary: #212121;
-  --text-secondary: #757575;
-  --divider-color: #BDBDBD;
-
-  --background-color: #f5f5f5;
-  --card-color: #ffffff;
-
   /* Spacing */
   --spacing-xs: 4px;
   --spacing-sm: 8px;
@@ -53,236 +32,17 @@
 
 /* Base styles */
 body {
-  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
-  font-size: var(--font-size-md);
-  line-height: 1.5;
-  color: var(--text-primary);
-  background-color: var(--background-color);
-  margin: 0;
-  padding: 0;
-  height: 100vh;
+    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    line-height: 1.5;
+    margin: 0;
+    padding: 0;
+    height: 100vh;
 }
 
 /* 隐藏滚动条但保留功能 */
 body::-webkit-scrollbar {
   width: 0;
   height: 0;
-}
-
-html {
-  overflow: hidden;
-}
-* {
-  box-sizing: border-box;
-}
-
-/* Typography */
-h1, h2, h3, h4, h5, h6 {
-  margin-top: 0;
-  color: var(--text-primary);
-  font-weight: 500;
-}
-
-p {
-  margin-top: 0;
-  margin-bottom: var(--spacing-md);
-}
-
-a {
-  color: var(--primary-color);
-  text-decoration: none;
-  transition: color var(--transition-fast);
-}
-
-a:hover {
-  color: var(--primary-dark);
-  text-decoration: underline;
-}
-
-/* Button styles */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--spacing-sm) var(--spacing-md);
-  border: none;
-  border-radius: var(--border-radius-sm);
-  font-size: var(--font-size-sm);
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color var(--transition-fast), transform var(--transition-fast);
-  text-align: center;
-}
-
-.btn:active {
-  transform: translateY(1px);
-}
-
-.btn-primary {
-  background-color: var(--primary-color);
-  color: white;
-}
-
-.btn-primary:hover {
-  background-color: var(--primary-dark);
-}
-
-.btn-secondary {
-  background-color: var(--secondary-color);
-  color: white;
-}
-
-.btn-secondary:hover {
-  background-color: var(--secondary-dark);
-}
-
-.btn-danger {
-  background-color: var(--error-color);
-  color: white;
-}
-
-.btn-danger:hover {
-  background-color: #d32f2f;
-}
-
-.btn-outline {
-  background-color: transparent;
-  border: 1px solid var(--primary-color);
-  color: var(--primary-color);
-}
-
-.btn-outline:hover {
-  background-color: var(--primary-light);
-}
-
-.btn-sm {
-  padding: var(--spacing-xs) var(--spacing-sm);
-  font-size: var(--font-size-xs);
-}
-
-.btn-lg {
-  padding: var(--spacing-md) var(--spacing-lg);
-  font-size: var(--font-size-lg);
-}
-
-.btn-icon {
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  border-radius: 50%;
-}
-
-/* Card styles */
-.card {
-  background-color: var(--card-color);
-  border-radius: var(--border-radius-md);
-  box-shadow: var(--shadow-sm);
-  padding: var(--spacing-md);
-  margin-bottom: var(--spacing-md);
-}
-
-/* List styles */
-.list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.list-item {
-  padding: var(--spacing-sm);
-  border-bottom: 1px solid var(--divider-color);
-}
-
-.list-item:last-child {
-  border-bottom: none;
-}
-
-/* Form controls */
-.form-control {
-  display: block;
-  width: 100%;
-  padding: var(--spacing-sm);
-  font-size: var(--font-size-md);
-  border: 1px solid var(--divider-color);
-  border-radius: var(--border-radius-sm);
-  background-color: white;
-  transition: border-color var(--transition-fast);
-}
-
-.form-control:focus {
-  outline: none;
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 2px var(--primary-light);
-}
-
-/* Utility classes */
-.text-center {
-  text-align: center;
-}
-
-.text-right {
-  text-align: right;
-}
-
-.text-left {
-  text-align: left;
-}
-
-.text-primary {
-  color: var(--primary-color);
-}
-
-.text-secondary {
-  color: var(--secondary-color);
-}
-
-.text-success {
-  color: var(--success-color);
-}
-
-.text-error {
-  color: var(--error-color);
-}
-
-.text-warning {
-  color: var(--warning-color);
-}
-
-.bg-primary {
-  background-color: var(--primary-color);
-}
-
-.bg-light {
-  background-color: var(--background-color);
-}
-
-/* Flex utilities */
-.d-flex {
-  display: flex;
-}
-
-.flex-column {
-  flex-direction: column;
-}
-
-.justify-center {
-  justify-content: center;
-}
-
-.justify-between {
-  justify-content: space-between;
-}
-
-.align-center {
-  align-items: center;
-}
-
-.flex-wrap {
-  flex-wrap: wrap;
-}
-
-.flex-grow-1 {
-  flex-grow: 1;
 }
 
 /* Spacing utilities */
@@ -312,7 +72,7 @@ a:hover {
 .p-4 { padding: var(--spacing-lg); }
 .p-5 { padding: var(--spacing-xl); }
 
-/* Scrollbar styling */
+/* Scrollbar styling
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -329,7 +89,7 @@ a:hover {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
-}
+} */
 
 /* Animation classes */
 .fade-in {
