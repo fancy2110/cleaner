@@ -176,6 +176,24 @@ export class ScannerService {
         }
     }
 
+    static async removeFileFromTrash(file: FileInfo): Promise<void> {
+        try {
+            if (!this.filesInTrash[file.path]) {
+                return;
+            }
+
+            delete this.filesInTrash[file.path];
+            this.trashSize -= file.size;
+
+            const files = Object.values(this.filesInTrash);
+
+            this.notifyTrashListeners(files, this.trashSize);
+        } catch (error) {
+            console.error('从回收站移除文件失败:', error);
+            throw error;
+        }
+    }
+
     /**
      * 清理扫描数据
      */

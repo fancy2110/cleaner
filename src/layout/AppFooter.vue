@@ -1,6 +1,7 @@
 <!-- eslint-disable vue/no-parsing-error -->
 <script setup lang="ts">
 import { ScannerService, TrashListener } from '@/service/ScannerService';
+import File from '@/views/uikit/File.vue';
 import { FileInfo, formatFileSize } from '@/types/fs';
 import { onMounted, onUnmounted, ref } from 'vue';
 
@@ -21,7 +22,7 @@ function onRowSelect(event: any) {
 }
 
 function removeFileFromTrash(value: FileInfo) {
-    // ScannerService.addFileToTrash(value);
+    ScannerService.removeFileFromTrash(value);
     console.log('on selected item ', value);
 }
 
@@ -39,34 +40,48 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <div class="items-center w-full gap-2 p-2 place-content-end">
-        <Panel toggleable :collapsed="true">
-            <template #header>
-                <div class="flex items-center gap-2">
-                    <Avatar image="https://primefaces.org/cdn/primevue/images/avatar/amyelsner.png" shape="circle" />
-                    <span class="font-bold">To Delete: {{ delelteSize }}</span>
-                </div>
-            </template>
+    <!-- <div class="items-center w-full gap-2 p-2 place-content-end"> -->
+    <Panel toggleable :collapsed="true">
+        <template #header>
+            <div class="flex items-center gap-2">
+                <span class="pi pi-trash" style="font-size: 2rem"></span>
+                <span class="font-bold">To Delete: {{ delelteSize }}</span>
+            </div>
+        </template>
 
-            <template #icons>
-                <Button icon="pi pi-trash" severity="secondary" rounded text @click="$router.push('/pages/empty')" />
-            </template>
+        <template #icons>
+            <Button icon="pi pi-trash" severity="secondary" rounded text @click="$router.push('/pages/empty')" />
+        </template>
 
-            <template #default>
+        <template #default>
+            <div v-if="items.length > 0">
                 <DataTable :value="items" selectionMode="single" @rowSelect="onRowSelect" scrollable dataKey="path"
                     scrollHeight="100%" :metaKeySelection="false">
-                    <Column :field="(rowData: FileInfo) => rowData.name" style="width: 250px"> </Column>
-                    <Column :field="(rowData: FileInfo) => formatFileSize(rowData.size)" style="width: 150px"> </Column>
-                    <Column style="width: 10rem">
+                    <Column>
                         <template #body="slotProps">
-                            <div class="flex flex-wrap gap-2">
-                                <Button type="button" icon="pi pi-restore" rounded severity="success"
-                                    v-on:click="removeFileFromTrash(slotProps.data)" />
-                            </div>
+                            <File :file="slotProps.data" />
+                        </template>
+                    </Column>
+                    <Column :field="(rowData: FileInfo) => formatFileSize(rowData.size)" style="width: 150px"> </Column>
+                    <Column style="width: 3rem">
+                        <template #body="slotProps">
+                            <Button type="button" icon="pi pi-times" rounded severity="warn" size="small"
+                                v-on:click="removeFileFromTrash(slotProps.data)" />
                         </template>
                     </Column>
                 </DataTable>
-            </template>
-        </Panel>
-    </div>
+            </div>
+            <div v-else class="p-4 text-center text-gray-500">回收站中没有文件</div>
+        </template>
+    </Panel>
+    <!-- </div> -->
 </template>
+
+<style lang="scss" scoped>
+.p-panel {
+    border: 1px solid var(--p-panel-border-color);
+    border-radius: 0px;
+    background: var(--p-panel-background);
+    color: var(--p-panel-color);
+}
+</style>

@@ -41,6 +41,7 @@
     "filename": "文件名",
     "type": "类型",
     "size": "大小",
+    "createTime": "创建时间",
     "loading": "正在加载文件...",
     "empty": "此文件夹为空",
     "actions": {

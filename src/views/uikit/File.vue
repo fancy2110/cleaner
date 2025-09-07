@@ -2,7 +2,6 @@
 import { FILE_TYPES, FileInfo, getFileType } from '@/types/fs';
 
 // 定义组件 props，接收 FileInfo 输入
-// eslint-disable-next-line no-unused-vars
 const props = defineProps<{
     file: FileInfo;
 }>();
@@ -63,12 +62,12 @@ const getFileIconColor = (file: FileInfo): string => {
 <template>
     <div class="file-item p-3 flex items-center gap-3 hover:bg-gray-100 rounded-md transition-colors">
         <!-- 文件图标 -->
-        <i :class="`${getFileIcon(file)} ${getFileIconColor(file)} text-2xl`"></i>
+        <i :class="`${getFileIcon(props.file)} ${getFileIconColor(props.file)} text-2xl`"></i>
 
         <!-- 文件信息 -->
         <div class="file-info flex-1 min-w-0">
-            <div class="file-name font-medium truncate" :title="file.name">
-                {{ file.name }}
+            <div class="file-name font-medium truncate" :title="props.file.name">
+                {{ props.file.name }}
             </div>
         </div>
     </div>

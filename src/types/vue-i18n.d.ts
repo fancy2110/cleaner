@@ -39,6 +39,7 @@ declare module 'vue-i18n' {
             filename: string;
             type: string;
             size: string;
+            createTime: string;
             loading: string;
             empty: string;
             actions: {
