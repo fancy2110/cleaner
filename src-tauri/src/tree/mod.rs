@@ -142,3 +142,164 @@ where
         self.root.take();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+    use std::sync::RwLock;
+
+    // 测试树的创建
+    #[test]
+    fn test_tree_creation() {
+        // 从值创建树
+        let tree: Tree<String, i32> = Tree::from_value("root".to_string(), 100);
+        assert!(tree.root.is_some());
+        assert_eq!(tree.size(), 1);
+        assert!(tree.contains(&"root".to_string()));
+
+        // 从节点创建树
+        let node = Node::new("root2".to_string(), 200);
+        let tree2 = Tree::from_node(node);
+        assert!(tree2.root.is_some());
+        assert_eq!(tree2.size(), 1);
+        assert!(tree2.contains(&"root2".to_string()));
+    }
+
+    // 测试节点插入
+    #[test]
+    fn test_insert_node() {
+        let mut tree: Tree<String, i32> = Tree::from_value("root".to_string(), 100);
+
+        // 插入子节点
+        let result = tree.insert(&"root".to_string(), "child1".to_string(), 101);
+        assert!(result.is_ok());
+        assert_eq!(tree.size(), 2);
+        assert!(tree.contains(&"child1".to_string()));
+
+        // 插入到不存在的父节点
+        let result = tree.insert(&"non_existent".to_string(), "child2".to_string(), 102);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err(),
+            "insert node failed, parent not found".to_string()
+        );
+        assert_eq!(tree.size(), 2);
+    }
+
+    // 测试节点删除
+    #[test]
+    fn test_remove_node() {
+        let mut tree: Tree<String, i32> = Tree::from_value("root".to_string(), 100);
+        tree.insert(&"root".to_string(), "child1".to_string(), 101)
+            .unwrap();
+        tree.insert(&"child1".to_string(), "grandchild1".to_string(), 102)
+            .unwrap();
+
+        // 删除不存在的节点
+        let result = tree.remove(&"non_existent".to_string());
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().len(), 0);
+        assert_eq!(tree.size(), 3);
+
+        // 删除叶节点
+        let result = tree.remove(&"grandchild1".to_string());
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().len(), 1);
+        assert_eq!(tree.size(), 2);
+        assert!(!tree.contains(&"grandchild1".to_string()));
+
+        // 删除带有子节点的节点
+        let result = tree.remove(&"child1".to_string());
+        assert!(result.is_ok());
+        assert_eq!(tree.size(), 1);
+        assert!(!tree.contains(&"child1".to_string()));
+    }
+
+    // 测试路径获取
+    #[test]
+    fn test_path_to_root() {
+        let mut tree: Tree<String, i32> = Tree::from_value("root".to_string(), 100);
+        tree.insert(&"root".to_string(), "child1".to_string(), 101)
+            .unwrap();
+        tree.insert(&"child1".to_string(), "grandchild1".to_string(), 102)
+            .unwrap();
+
+        // 获取从叶节点到根的路径
+        let path = tree.path_to_root(&"grandchild1".to_string());
+        assert_eq!(path.len(), 3);
+        assert_eq!(path[0].read().unwrap().key, "grandchild1".to_string());
+        assert_eq!(path[1].read().unwrap().key, "child1".to_string());
+        assert_eq!(path[2].read().unwrap().key, "root".to_string());
+
+        // 获取从根节点到根的路径
+        let path = tree.path_to_root(&"root".to_string());
+        assert_eq!(path.len(), 1);
+        assert_eq!(path[0].read().unwrap().key, "root".to_string());
+
+        // 获取不存在节点的路径
+        let path = tree.path_to_root(&"non_existent".to_string());
+        assert_eq!(path.len(), 0);
+    }
+
+    // 测试获取节点
+    #[test]
+    fn test_get_node() {
+        let mut tree: Tree<String, i32> = Tree::from_value("root".to_string(), 100);
+        tree.insert(&"root".to_string(), "child1".to_string(), 101)
+            .unwrap();
+
+        // 获取存在的节点
+        let node = tree.get_node(&"child1".to_string());
+        assert!(node.is_some());
+        assert_eq!(node.unwrap().read().unwrap().key, "child1".to_string());
+
+        // 获取不存在的节点
+        let node = tree.get_node(&"non_existent".to_string());
+        assert!(node.is_none());
+    }
+
+    // 测试节点值的访问
+    #[test]
+    fn test_node_value_access() {
+        let node = Node::new("test".to_string(), 42);
+        assert_eq!(node.get_value(), &42);
+    }
+
+    // 测试节点更新
+    #[test]
+    fn test_node_update() {
+        let node = Node::new("test".to_string(), 42);
+        let node_ref = Arc::new(RwLock::new(node));
+
+        {
+            let mut node = node_ref.write().unwrap();
+            node.update(|value| *value = 100);
+        }
+
+        assert_eq!(node_ref.read().unwrap().get_value(), &100);
+    }
+
+    // 测试节点父子关系
+    #[test]
+    fn test_node_parent_child_relationship() {
+        let mut tree: Tree<String, i32> = Tree::from_value("root".to_string(), 100);
+        let child = tree
+            .insert(&"root".to_string(), "child1".to_string(), 101)
+            .unwrap();
+
+        // 验证父节点关系
+        assert!(child.read().unwrap().get_parent().is_some());
+        assert_eq!(
+            child
+                .read()
+                .unwrap()
+                .get_parent()
+                .unwrap()
+                .read()
+                .unwrap()
+                .key,
+            "root".to_string()
+        );
+    }
+}

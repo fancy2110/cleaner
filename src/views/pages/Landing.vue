@@ -1,9 +1,5 @@
-<script setup lang="ts">
-import HeroWidget from '@/components/landing/HeroWidget.vue';
-</script>
+<script setup lang="ts"></script>
 
 <template>
-    <div class="bg-surface-0 dark:bg-surface-900">
-        <HeroWidget />
-    </div>
+    <div class="bg-surface-0 dark:bg-surface-900"></div>
 </template>

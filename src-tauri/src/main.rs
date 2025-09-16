@@ -1,5 +1,6 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![feature(let_chains)] // added at the top of your code
 
 use std::cell::LazyCell;
 use std::fmt::Debug;

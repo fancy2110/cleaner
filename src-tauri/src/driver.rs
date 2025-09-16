@@ -67,43 +67,13 @@ impl Element {
     async fn get_element(path: &Path) -> Option<Element> {
         None
     }
-
-    // /**
-    //  * fetch current path‘s sub directories
-    //  */
-    // async fn load_children<'a> (&self) -> Option<&[Element]> {
-    //     if let FileType::Directory = self.file_type {
-    //         let mut children = self.children.lock().await;
-    //         if let Some(children) = &mut *children {
-    //             return Some(children.as_slice());
-    //         } else {
-    //             let mut new_data :Vec<Element>= vec![];
-    //             if let Ok(entries) = fs::read_dir(&self.path) {
-    //                 for entry in entries {
-    //                     let entry = entry.unwrap();
-    //                     let path = entry.path();
-    //                     let metadata = entry.metadata().unwrap();
-    //                 }
-    //             }
-
-    //             *children = Some(new_data);
-    //             return &*children.map(|item|  item.as_slice());
-    //         }
-    //     }  else {
-    //         return None;
-    //     }
-    // }
 }
 
 #[command]
 /**
  * Get the list of drivers provided by the operation
  */
-pub async fn get_available_drivers(
-    state: State<'_, Mutex<Scanner>>,
-) -> Result<Vec<Volumn>, String> {
-    let scanner = state.lock().await;
-
+pub async fn get_available_drivers(_: State<'_, Mutex<Scanner>>) -> Result<Vec<Volumn>, String> {
     // Please note that we use "new_all" to ensure that all lists of
     // CPUs and processes are filled!
     let mut sys = System::new_all();
@@ -111,18 +81,18 @@ pub async fn get_available_drivers(
     // First we update all information of our `System` struct.
     sys.refresh_all();
 
-    println!("=> system:");
+    debug!("=> system:");
     // RAM and swap information:
-    println!("total memory: {} bytes", sys.total_memory());
-    println!("used memory : {} bytes", sys.used_memory());
-    println!("total swap  : {} bytes", sys.total_swap());
-    println!("used swap   : {} bytes", sys.used_swap());
+    debug!("total memory: {} bytes", sys.total_memory());
+    debug!("used memory : {} bytes", sys.used_memory());
+    debug!("total swap  : {} bytes", sys.total_swap());
+    debug!("used swap   : {} bytes", sys.used_swap());
 
     // Display system information:
-    println!("System name:             {:?}", System::name());
-    println!("System kernel version:   {:?}", System::kernel_version());
-    println!("System OS version:       {:?}", System::os_version());
-    println!("System host name:        {:?}", System::host_name());
+    debug!("System name:             {:?}", System::name());
+    debug!("System kernel version:   {:?}", System::kernel_version());
+    debug!("System OS version:       {:?}", System::os_version());
+    debug!("System host name:        {:?}", System::host_name());
 
     // We display all disks' information:
     let disks = Disks::new_with_refreshed_list();

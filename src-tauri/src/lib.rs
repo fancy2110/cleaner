@@ -1,13 +1,12 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
 use tauri::{command, State};
 use tauri::{Emitter, Manager};
 use tokio::sync::Mutex;
 use tracing::{debug, info};
 
 mod driver;
+mod fs;
 mod model;
 mod service;
 mod tree;
@@ -96,6 +95,7 @@ pub fn run() {
 
     let app = tauri::Builder::default()
         .manage(Mutex::new(scanner))
+        .plugin(tauri_plugin_filemanager::init())
         .setup(|app| {
             let resolver = app.handle().path();
             info!(
