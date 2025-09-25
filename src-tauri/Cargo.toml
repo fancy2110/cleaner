@@ -28,6 +28,7 @@ tokio = {workspace = true}
 tracing = {workspace = true}
 tracing-futures = {workspace = true}
 tracing-subscriber = {workspace = true}
+tracing-appender = {workspace = true}
 udp = {workspace = true}
 
 serde = {version = "1", features = ["derive"] }

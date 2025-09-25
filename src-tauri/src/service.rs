@@ -1,11 +1,10 @@
 use serde::{Deserialize, Serialize};
 use std::{
-    cell::RefCell,
-    collections::{HashMap, VecDeque},
+    collections::VecDeque,
     fmt::Debug,
     fs::Metadata,
     io,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc, RwLock,
@@ -26,16 +25,18 @@ pub struct FileNode {
     pub path: PathBuf,
     pub size: usize,
     pub is_directory: bool,
+    pub is_link: bool,
     pub modified: Option<u64>,
     pub created: Option<u64>,
 }
 
 impl FileNode {
-    fn new(path: PathBuf, is_dir: bool) -> FileNode {
+    fn new(path: PathBuf, is_dir: bool, is_link: bool) -> FileNode {
         FileNode {
             path: path.to_path_buf(),
             size: 0,
             is_directory: is_dir,
+            is_link: is_link,
             modified: None,
             created: None,
         }
@@ -46,6 +47,7 @@ impl FileNode {
             path: node.path.clone(),
             size: node.size,
             is_directory: node.is_directory,
+            is_link: node.is_link,
             modified: node.modified,
             created: node.created,
         }
@@ -97,7 +99,7 @@ impl Scanner {
             queue: Arc::new(Mutex::new(VecDeque::new())),
             files: Arc::new(Mutex::new(Tree::from_value(
                 PathBuf::from("/"),
-                FileNode::new(PathBuf::from("/"), true),
+                FileNode::new(PathBuf::from("/"), true, false),
             ))),
             workers: Vec::new(),
             concurrency: concurrency,
@@ -115,7 +117,7 @@ impl Scanner {
         let node = match nodes.get_node(&path) {
             Some(node) => node.read().unwrap().key.clone(),
             None => {
-                let node = FileNode::new(path.clone(), true);
+                let node = FileNode::new(path.clone(), true, false);
                 nodes.insert(&path, path.clone(), node).unwrap();
                 path
             }
@@ -170,7 +172,8 @@ impl Scanner {
 
             let worker = tokio::spawn(async move {
                 debug!("Worker {} started", worker_id);
-                let _max_count = 10000;
+                let _max_count = 1000000;
+                // let _max_count = i32::MAX;
                 let mut count = 0;
 
                 loop {
@@ -188,12 +191,6 @@ impl Scanner {
 
                     match item {
                         Some(item) => {
-                            // Update current scanning path in a separate scope
-                            {
-                                let mut prog = progress.lock().await;
-                                prog.current_path = Some(item.path.clone());
-                            }
-
                             // Process the item with all locks released
                             if let Err(e) =
                                 Self::process_scan_item(&tree, item, &queue, &tx, &progress).await
@@ -206,6 +203,7 @@ impl Scanner {
                                 debug!("Worker {} exiting", worker_id);
                                 break;
                             }
+                            debug!("Worker try to wait next job");
                             tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
                         }
                     }
@@ -285,7 +283,7 @@ impl Scanner {
             node.path, parent
         );
         // Process directory contents if applicable
-        if node.is_directory {
+        if node.is_directory && !node.is_link {
             Self::process_directory(item.path, queue).await?;
         }
 
@@ -323,6 +321,7 @@ impl Scanner {
             path: path,
             size: metadata.len() as usize,
             is_directory: metadata.is_dir(),
+            is_link: metadata.is_symlink(),
             modified,
             created,
         }
@@ -397,11 +396,6 @@ impl Scanner {
             while let Some(parent) = item {
                 if let Ok(mut value) = parent.write() {
                     value.update(|node| node.size += new_size);
-                    debug!(
-                        "try to update parent sizes, key:{:?}, size:{:?}",
-                        value.key,
-                        value.get_value().size
-                    );
                     item = value.get_parent();
                 } else {
                     item = None;
@@ -470,7 +464,7 @@ impl Scanner {
         self.queue.lock().await.clear();
         self.files = Arc::new(Mutex::new(Tree::from_value(
             PathBuf::from("/"),
-            FileNode::new(PathBuf::from("/"), true),
+            FileNode::new(PathBuf::from("/"), true, false),
         )));
 
         let mut progress = self.progress.lock().await;
