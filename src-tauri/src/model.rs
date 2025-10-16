@@ -21,14 +21,10 @@ pub struct FileDetails {
 impl FileDetails {
     pub fn from(stat: FileNode) -> FileDetails {
         let path = stat.path;
-        let name = path
-            .file_name()
-            .map(|name| name.to_string_lossy().to_string())
-            .unwrap_or("/".to_string());
 
         FileDetails {
-            name: name,
-            path: path,
+            name: path.to_string_lossy().into_owned(),
+            path: PathBuf::from("/"),
             size: stat.size,
             is_directory: stat.is_directory,
             created: stat.created.unwrap_or_default(),
