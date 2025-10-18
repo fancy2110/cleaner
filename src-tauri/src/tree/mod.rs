@@ -11,7 +11,7 @@ use tracing_futures::Instrument;
 use crate::{
     driver::get_available_drivers,
     service::FileNode,
-    tree::node::{Node, NodeRef},
+    tree::node::{Node, NodeRef, RootIter},
 };
 
 pub mod node;
@@ -41,16 +41,33 @@ impl Tree {
         let parent_node = self
             .get_node(parent)
             .ok_or_else(|| format!("parent not found, {}", parent.display()))?;
-        let mut parent = parent_node
-            .write()
-            .map_err(|err| format!("failed to write node, {}", err))?;
 
-        let new_node = parent.add_child(value);
-        match new_node.write() {
-            Ok(mut node) => {
+        let new_node = {
+            let mut parent = parent_node
+                .write()
+                .map_err(|err| format!("failed to write node, {}", err))?;
+
+            let new_node = parent.add_child(value);
+
+            let _ = new_node.write().map(|mut node| {
                 node.parent = Some(parent_node.clone());
+            });
+            new_node
+        };
+
+        let iter = RootIter {
+            node: Some(new_node.clone()),
+        };
+        for node in iter {
+            let parent = node.read().map_or(None, |node| node.parent.clone());
+            if let Some(parent) = parent {
+                match (parent.write(), new_node.read()) {
+                    (Ok(mut parent_node), Ok(child_node)) => {
+                        parent_node.count += child_node.total_count();
+                    }
+                    _ => (),
+                }
             }
-            Err(err) => return Err(format!("failed to write node, {}", err)),
         }
         return Ok(new_node);
     }
@@ -75,6 +92,17 @@ impl Tree {
                  */
                 Ok(node.clone())
             });
+    }
+
+    fn trace_to_root<'a, F>(&mut self, node: &NodeRef, mut modify: F)
+    where
+        F: FnMut(&NodeRef),
+    {
+        let mut iter = Some(node.clone());
+        while let Some(value) = iter.as_ref() {
+            modify(value);
+            iter = value.read().map_or(None, |node| node.parent.clone());
+        }
     }
 
     pub fn contains(&self, key: &PathBuf) -> bool {
@@ -127,9 +155,9 @@ impl Tree {
     }
 
     pub fn size(&self) -> usize {
-        self.root.as_ref().map_or(0, |node| {
-            node.read().map(|node| node.count + 1).unwrap_or(0)
-        })
+        self.root
+            .as_ref()
+            .map_or(0, |node| node.read().map_or(0, |node| node.count + 1))
     }
 }
 
@@ -148,10 +176,6 @@ mod tests {
     use std::sync::Arc;
     use std::sync::RwLock;
 
-    fn new() -> Tree {
-        Tree { root: None }
-    }
-
     // 测试树的创建
     #[test]
     fn test_tree_creation() {
@@ -166,7 +190,7 @@ mod tests {
         // 从节点创建树
         let file_path1 = PathBuf::from("File1.txt");
         let file1 = FileNode::new(file_path1.clone().into_os_string(), false, false);
-        tree.insert(&path, file1);
+        let _ = tree.insert(&path, file1);
         assert_eq!(tree.size(), 2);
         assert!(tree.contains(&PathBuf::from("/File1.txt")));
     }
@@ -267,7 +291,7 @@ mod tests {
         let paths: Vec<String> = (0..10).map(|i| format!("dir{}", i)).collect();
         let mut current_path = root_path.clone();
         for dir_name in &paths {
-            println!("{:?}", dir_name);
+            println!("current:{}, new:{}", current_path.display(), dir_name);
             let dir_node = FileNode::new(OsString::from(dir_name.clone()), true, false);
 
             for i in 0..10 {
@@ -282,7 +306,7 @@ mod tests {
 
         // let node = FileNode::new(item.as_os_str().to_string_lossy(), true, false);
         // tree.insert(node);
-        assert_eq!(tree.size(), 9);
+        assert_eq!(tree.size(), 111);
 
         // // 创建一个确定性的树结构，深度为10，节点数少于100
         // let mut total_nodes = 1; // 已经有一个根节点

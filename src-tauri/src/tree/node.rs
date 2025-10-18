@@ -75,6 +75,10 @@ impl Node {
         elems
     }
 
+    pub fn total_count(&self) -> usize {
+        self.count + 1
+    }
+
     pub fn get_value(&self) -> &FileNode {
         &self.value
     }
@@ -138,23 +142,22 @@ impl PartialEq for Node {
     }
 }
 
-struct RootIter {
-    node: Option<NodeRef>,
+pub(crate) struct RootIter {
+    pub(crate) node: Option<NodeRef>,
 }
 
 impl Iterator for RootIter {
     type Item = NodeRef;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let next = if let Some(cur) = &self.node {
-            cur.read().unwrap().get_parent()
+        let next = if let Some(cur) = &self.node
+            && let Ok(node) = cur.read()
+        {
+            node.parent.clone()
         } else {
             None
         };
-        match &next {
-            Some(next) => self.node = Some(next.clone()),
-            None => self.node = None,
-        }
+        self.node = next.clone();
         next
     }
 }
