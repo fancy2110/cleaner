@@ -2,7 +2,7 @@ use std::{
     ffi::OsString,
     fmt::Debug,
     path::{Component, PathBuf},
-    sync::{Arc, RwLock},
+    sync::{Arc, RwLock, RwLockWriteGuard},
 };
 
 use tracing::{debug, warn};
@@ -55,53 +55,67 @@ impl Tree {
             new_node
         };
 
-        let iter = RootIter {
-            node: Some(new_node.clone()),
-        };
-        for node in iter {
-            let parent = node.read().map_or(None, |node| node.parent.clone());
-            if let Some(parent) = parent {
-                match (parent.write(), new_node.read()) {
-                    (Ok(mut parent_node), Ok(child_node)) => {
-                        parent_node.count += child_node.total_count();
-                    }
-                    _ => (),
-                }
+        self.trace_to_root(&new_node, |parent| {
+            if let Ok(mut parent) = parent.write()
+                && let Ok(new_node) = new_node.read()
+            {
+                parent.count += new_node.total_count();
             }
-        }
+        });
+
         return Ok(new_node);
     }
 
     pub fn remove(&mut self, key: &PathBuf) -> Result<NodeRef, String> {
-        return self
-            .get_node(key)
-            .map_or(Err(format!("{} not found", key.display())), |node| {
-                if let Ok(node) = node.write()
-                    && let Some(parent) = node.parent.as_ref()
-                    && let Ok(mut parent) = parent.write()
-                {
-                    parent.children.retain(|child| {
-                        child.read().map_or(true, |child| {
-                            child.get_value().path != node.get_value().path
-                        })
-                    });
-                }
+        let target =
+            self.get_node(key)
+                .map_or(Err(format!("key:{} not found", key.display())), |node| {
+                    println!(
+                        "item on remove , target:{}",
+                        node.read().unwrap().get_value().path.display()
+                    );
+                    Ok(node)
+                })?;
 
-                /*
-                 * remove all cache node from search map
-                 */
-                Ok(node.clone())
+        if let Ok(node) = target.read()
+            && let Some(parent) = node.parent.as_ref()
+            && let Ok(mut parent) = parent.write()
+        {
+            parent.children.retain(|child| {
+                child.read().map_or(true, |child| {
+                    child.get_value().path != node.get_value().path
+                })
             });
+        } else {
+            return Err(format!("remove from parent failed"));
+        }
+
+        self.trace_to_root(&target, |parent| {
+            if let Ok(mut parent) = parent.write()
+                && let Ok(node) = target.read()
+            {
+                parent.count -= node.total_count();
+            }
+        });
+
+        /*
+         * remove all cache node from search map
+         */
+        Ok(target)
     }
 
     fn trace_to_root<'a, F>(&mut self, node: &NodeRef, mut modify: F)
     where
         F: FnMut(&NodeRef),
     {
-        let mut iter = Some(node.clone());
-        while let Some(value) = iter.as_ref() {
-            modify(value);
-            iter = value.read().map_or(None, |node| node.parent.clone());
+        let iter = RootIter {
+            node: Some(node.clone()),
+        };
+        for node in iter {
+            let parent = node.read().map_or(None, |node| node.parent.clone());
+            if let Some(parent) = parent {
+                modify(&parent)
+            }
         }
     }
 
@@ -134,18 +148,16 @@ impl Tree {
             if let Some(node) = current
                 && let Ok(node) = node.read()
             {
-                let mut target = None;
-                for child in &node.children {
-                    let is_ok = child
-                        .read()
-                        .map(|node| node.get_value().path.as_os_str() == path.as_os_str())
-                        .is_ok();
-                    if is_ok {
-                        target = Some(child.clone());
-                        break;
-                    }
-                }
-                current = target;
+                current = node
+                    .children
+                    .iter()
+                    .find(|child| {
+                        child
+                            .read()
+                            .map(|node| node.get_value().path == path.as_os_str())
+                            .is_ok_and(|result| result)
+                    })
+                    .map(|node| node.clone());
             } else {
                 current = None;
                 break;
@@ -176,6 +188,30 @@ mod tests {
     use std::sync::Arc;
     use std::sync::RwLock;
 
+    fn build_test_tree() -> Tree {
+        // create root node
+        let root_path = PathBuf::from("/");
+        let root_file = FileNode::new(root_path.clone().into_os_string(), true, false);
+        let mut tree: Tree = Tree::from_value(root_file);
+        //
+        let paths: Vec<String> = (0..10).map(|i| format!("dir{}", i)).collect();
+        let mut current_path = root_path.clone();
+        for dir_name in &paths {
+            println!("current:{}, new:{}", current_path.display(), dir_name);
+            let dir_node = FileNode::new(OsString::from(dir_name.clone()), true, false);
+
+            for i in 0..10 {
+                let file_name = format!("file{}", i);
+                let file_node = FileNode::new(OsString::from(file_name), false, false);
+                let _ = tree.insert(&current_path, file_node);
+            }
+
+            let _ = tree.insert(&current_path, dir_node);
+            current_path.push(dir_name.clone());
+        }
+        tree
+    }
+
     // 测试树的创建
     #[test]
     fn test_tree_creation() {
@@ -195,63 +231,81 @@ mod tests {
         assert!(tree.contains(&PathBuf::from("/File1.txt")));
     }
 
+    // 测试构建深度为10且节点数少于100的树
+    #[test]
+    fn test_build_deep_tree() {
+        let tree = build_test_tree();
+        assert_eq!(tree.size(), 111);
+    }
+
+    // 测试节点插入
+    #[test]
+    fn test_find_node() {
+        let tree = build_test_tree();
+        assert!(
+            tree.get_node(&PathBuf::from("/dir0/dir1/dir2/file1"))
+                .is_some()
+        );
+    }
+
     // 测试节点插入
     #[test]
     fn test_insert_node() {
-        let path = PathBuf::from("/");
-        let file = FileNode::new(path.clone().into_os_string(), true, false);
-        // 从值创建树
-        let mut tree: Tree = Tree::from_value(file);
+        let mut tree = build_test_tree();
 
+        let before_count = tree.size();
         // 插入子节点
-        let file1_path = PathBuf::from("/File2.txt");
+        let file1_path = PathBuf::from("File2.txt");
         let file1 = FileNode::new(file1_path.clone().into_os_string(), false, false);
-        let result = tree.insert(&path, file1);
+        let result = tree.insert(&PathBuf::from("/"), file1);
         assert!(result.is_ok());
-        assert_eq!(tree.size(), 2);
-        assert!(tree.contains(&file1_path));
+        assert_eq!(tree.size(), before_count + 1);
+        assert!(tree.contains(&PathBuf::from("/File2.txt")));
 
+        let before_count = tree.size();
         // 插入到不存在的父节点
-        let file2_path = PathBuf::from("/File3.txt");
+        let file2_path = PathBuf::from("File3.txt");
         let file2 = FileNode::new(file2_path.clone().into_os_string(), false, false);
         let result = tree.insert(&PathBuf::from("nofile"), file2);
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), "parent not found, nofile".to_string());
-        assert_eq!(tree.size(), 2);
+        assert_eq!(tree.size(), before_count);
     }
 
-    // 测试节点删除
-    // #[test]
-    // fn test_remove_node() {
-    //     let path = PathBuf::from("/");
-    //     let root = FileNode::new(path.clone().into_os_string(), true, false);
-    //     // 从值创建树
-    //     let mut tree: Tree = Tree::from_value(root);
+    ///测试节点删除
+    #[test]
+    fn test_remove_node() {
+        let path = PathBuf::from("/");
+        // 从值创建树
+        let mut tree: Tree = build_test_tree();
+        let before_size = tree.size();
+        // 删除不存在的节点
+        let result = tree.remove(&PathBuf::from("non_existent"));
+        assert!(result.is_err());
+        assert_eq!(tree.size(), before_size);
 
-    //     tree.insert(&"root".to_string(), "child1".to_string(), 101)
-    //         .unwrap();
-    //     tree.insert(&"child1".to_string(), "grandchild1".to_string(), 102)
-    //         .unwrap();
+        let before_size = tree.size();
+        // 删除叶节点
+        let target_path = PathBuf::from("/dir0/dir1/dir2/file1");
+        let result = tree.remove(&target_path);
+        assert!(result.is_ok());
+        assert_eq!(
+            result.unwrap().read().unwrap().total_count(),
+            before_size - tree.size()
+        );
+        assert!(!tree.contains(&target_path));
 
-    //     // 删除不存在的节点
-    //     let result = tree.remove(&"non_existent".to_string());
-    //     assert!(result.is_ok());
-    //     assert_eq!(result.unwrap().len(), 0);
-    //     assert_eq!(tree.size(), 3);
-
-    //     // 删除叶节点
-    //     let result = tree.remove(&"grandchild1".to_string());
-    //     assert!(result.is_ok());
-    //     assert_eq!(result.unwrap().len(), 1);
-    //     assert_eq!(tree.size(), 2);
-    //     assert!(!tree.contains(&"grandchild1".to_string()));
-
-    //     // 删除带有子节点的节点
-    //     let result = tree.remove(&"child1".to_string());
-    //     assert!(result.is_ok());
-    //     assert_eq!(tree.size(), 1);
-    //     assert!(!tree.contains(&"child1".to_string()));
-    // }
+        // 删除带有子节点的节点
+        let before_size = tree.size();
+        let target_path = PathBuf::from("/dir0/dir1/dir2/dir3");
+        let result = tree.remove(&target_path);
+        assert!(result.is_ok());
+        assert_eq!(
+            result.unwrap().read().unwrap().total_count(),
+            before_size - tree.size()
+        );
+        assert!(!tree.contains(&target_path));
+    }
 
     // 测试路径获取
     // #[test]
@@ -278,147 +332,6 @@ mod tests {
     //     let path = tree.path_to_root(&"non_existent".to_string());
     //     assert_eq!(path.len(), 0);
     // }
-
-    // 测试构建深度为10且节点数少于100的树
-    #[test]
-    fn test_build_deep_tree() {
-        // create root node
-        let root_path = PathBuf::from("/");
-        let root_file = FileNode::new(root_path.clone().into_os_string(), true, false);
-        let mut tree: Tree = Tree::from_value(root_file);
-        assert_eq!(tree.size(), 1);
-        //
-        let paths: Vec<String> = (0..10).map(|i| format!("dir{}", i)).collect();
-        let mut current_path = root_path.clone();
-        for dir_name in &paths {
-            println!("current:{}, new:{}", current_path.display(), dir_name);
-            let dir_node = FileNode::new(OsString::from(dir_name.clone()), true, false);
-
-            for i in 0..10 {
-                let file_name = format!("file{}", i);
-                let file_node = FileNode::new(OsString::from(file_name), false, false);
-                let _ = tree.insert(&current_path, file_node);
-            }
-
-            let _ = tree.insert(&current_path, dir_node);
-            current_path.push(dir_name.clone());
-        }
-
-        // let node = FileNode::new(item.as_os_str().to_string_lossy(), true, false);
-        // tree.insert(node);
-        assert_eq!(tree.size(), 111);
-
-        // // 创建一个确定性的树结构，深度为10，节点数少于100
-        // let mut total_nodes = 1; // 已经有一个根节点
-
-        // // 创建主干路径 (一条深度为10的路径)
-        // let mut current_path = root_path.clone();
-        // // 每层的目录数和文件数，用于控制树的扩散程度
-        // for depth in 1..=10 {
-        //     if total_nodes >= 95 {
-        //         break; // 确保不超过100个节点
-        //     }
-        //     let dir_name = format!("dir_{}", depth);
-        //     let dir_node = FileNode::new(OsString::from(dir_name.clone()), true, false);
-        //     let next_path = current_path.join(&dir_name);
-
-        //     tree.insert(&current_path, dir_node)
-        //         .expect("Failed to insert directory");
-        //     total_nodes += 1;
-        //     println!(
-        //         "Added directory level_{}, total nodes: {}",
-        //         depth, total_nodes
-        //     );
-        //     current_path = next_path;
-
-        //     // 在每一层添加一些兄弟节点（文件和目录）
-        //     let siblings_to_add = 12 - depth; // 越深层级添加越少的节点
-        //     for i in 1..=siblings_to_add {
-        //         // 添加一个目录
-        //         let sibling_dir_name = format!("sibling_dir_{}_{}", depth, i);
-        //         let sibling_dir_node =
-        //             FileNode::new(OsString::from(sibling_dir_name.clone()), true, false);
-        //         let sibling_path = current_path.parent().unwrap().join(&sibling_dir_name);
-
-        //         tree.insert(
-        //             &PathBuf::from(current_path.parent().unwrap()),
-        //             sibling_dir_node,
-        //         )
-        //         .expect("Failed to insert sibling directory");
-        //         total_nodes += 1;
-        //         println!(
-        //             "Added sibling directory {}_{}, total nodes: {}",
-        //             depth, i, total_nodes
-        //         );
-
-        //         // 在每个兄弟目录中添加一些文件
-        //         let files_to_add = 10 - depth;
-        //         for j in 1..=files_to_add {
-        //             if total_nodes >= 95 {
-        //                 break; // 确保不超过100个节点
-        //             }
-
-        //             let file_name = format!("file_{}_{}_{}.txt", depth, i, j);
-        //             let file_node = FileNode::new(OsString::from(file_name.clone()), false, false);
-
-        //             tree.insert(&sibling_path, file_node)
-        //                 .expect("Failed to insert file");
-        //             total_nodes += 1;
-        //             println!(
-        //                 "Added file {}_{}_{}.txt, total nodes: {}",
-        //                 depth, i, j, total_nodes
-        //             );
-        //         }
-        //     }
-
-        //     // 在主干路径的每一层也添加一些文件
-        //     let files_in_main = 12 - depth;
-        //     for j in 1..=files_in_main {
-        //         if total_nodes >= 95 {
-        //             break; // 确保不超过100个节点
-        //         }
-
-        //         let file_name = format!("main_file_{}_{}.txt", depth, j);
-        //         let file_node = FileNode::new(OsString::from(file_name.clone()), false, false);
-
-        //         tree.insert(&current_path, file_node)
-        //             .expect("Failed to insert file in main path");
-        //         total_nodes += 1;
-        //         println!(
-        //             "Added main file {}_{}.txt, total nodes: {}",
-        //             depth, j, total_nodes
-        //         );
-        //     }
-
-        //     if total_nodes >= 95 {
-        //         break; // 确保不超过100个节点
-        //     }
-        // }
-
-        // // 验证树的大小和性质
-        // println!("Final node count from counter: {}", total_nodes);
-        // println!("Final node count from tree.size(): {}", tree.size());
-        // assert!(tree.size() < 100, "树的节点数应小于100");
-        // assert!(tree.size() > 80, "树的节点数应接近100，至少大于80");
-
-        // // 验证树的深度
-        // let deepest_path = current_path.clone();
-        // let path_to_root = tree.path_to_root(&deepest_path);
-
-        // // 树的深度应该为11（1个根节点 + 10层）
-        // assert_eq!(
-        //     path_to_root.len(),
-        //     11,
-        //     "树的深度应该为11 (1个根节点 + 10层)"
-        // );
-
-        // println!(
-        //     "构建的树有 {} 个节点，深度为 {}，最深路径为 {}",
-        //     tree.size(),
-        //     path_to_root.len(),
-        //     deepest_path.display()
-        // );
-    }
 
     // // 测试获取节点
     // #[test]
