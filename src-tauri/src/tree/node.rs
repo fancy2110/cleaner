@@ -7,7 +7,7 @@ use std::{
     thread::panicking,
 };
 
-use crate::service::FileNode;
+use crate::{service::FileNode, tree::RootIter};
 
 #[derive(Debug)]
 pub struct Node {
@@ -92,20 +92,7 @@ impl Node {
     }
 
     pub fn get_path(&self) -> PathBuf {
-        let mut path = PathBuf::from(self.value.path.clone());
-
-        let iter = RootIter {
-            node: self.parent.clone(),
-        };
-        for node in iter {
-            if let Ok(parent) = node.read() {
-                let mut new_path = PathBuf::from(parent.value.path.clone());
-                new_path.push(path);
-                path = new_path;
-            }
-        }
-
-        path
+        PathBuf::from(self.value.path.clone())
     }
 
     pub fn get_parent(&self) -> Option<NodeRef> {
@@ -139,26 +126,6 @@ impl PartialEq for Node {
 
     fn ne(&self, other: &Self) -> bool {
         return !eq(self, other);
-    }
-}
-
-pub(crate) struct RootIter {
-    pub(crate) node: Option<NodeRef>,
-}
-
-impl Iterator for RootIter {
-    type Item = NodeRef;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let next = if let Some(cur) = &self.node
-            && let Ok(node) = cur.read()
-        {
-            node.parent.clone()
-        } else {
-            None
-        };
-        self.node = next.clone();
-        next
     }
 }
 

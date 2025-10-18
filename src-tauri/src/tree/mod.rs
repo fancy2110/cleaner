@@ -11,7 +11,7 @@ use tracing_futures::Instrument;
 use crate::{
     driver::get_available_drivers,
     service::FileNode,
-    tree::node::{Node, NodeRef, RootIter},
+    tree::node::{Node, NodeRef},
 };
 
 pub mod node;
@@ -123,14 +123,26 @@ impl Tree {
         return self.get_node(key).is_some();
     }
 
-    pub fn path_to_root(&self, key: &PathBuf) -> Vec<NodeRef> {
-        let mut path = vec![];
-        let mut node = self.get_node(key);
-        while let Some(value) = node {
-            path.push(value.clone());
-            node = value.read().map_or(None, |node| node.parent.clone())
+    pub fn path_to_root(&self, node: &NodeRef) -> Result<PathBuf, String> {
+        let mut path =
+            node.read().map_or(
+                Err("Node not found".to_string()),
+                |node| Ok(node.get_path()),
+            )?;
+
+        let iter = RootIter {
+            node: Some(node.clone()),
+        };
+
+        for node in iter {
+            if let Ok(parent) = node.read() {
+                let mut new_path = parent.get_path();
+                new_path.push(path);
+                path = new_path;
+            }
         }
-        path
+
+        Ok(path)
     }
 
     /***
@@ -145,6 +157,7 @@ impl Tree {
         }
 
         for path in paths {
+            println!("find node {:?}", path);
             if let Some(node) = current
                 && let Ok(node) = node.read()
             {
@@ -177,6 +190,26 @@ impl Drop for Tree {
     fn drop(&mut self) {
         println!("tree recycled");
         self.root.take();
+    }
+}
+
+struct RootIter {
+    pub(crate) node: Option<NodeRef>,
+}
+
+impl Iterator for RootIter {
+    type Item = NodeRef;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let next = if let Some(cur) = &self.node
+            && let Ok(node) = cur.read()
+        {
+            node.parent.clone()
+        } else {
+            None
+        };
+        self.node = next.clone();
+        next
     }
 }
 
@@ -307,48 +340,19 @@ mod tests {
         assert!(!tree.contains(&target_path));
     }
 
-    // 测试路径获取
-    // #[test]
-    // fn test_path_to_root() {
-    //     let mut tree: Tree<String, i32> = Tree::from_value("root".to_string(), 100);
-    //     tree.insert(&"root".to_string(), "child1".to_string(), 101)
-    //         .unwrap();
-    //     tree.insert(&"child1".to_string(), "grandchild1".to_string(), 102)
-    //         .unwrap();
+    ///测试路径获取
+    #[test]
+    fn test_path_to_root() {
+        let tree = build_test_tree();
 
-    //     // 获取从叶节点到根的路径
-    //     let path = tree.path_to_root(&"grandchild1".to_string());
-    //     assert_eq!(path.len(), 3);
-    //     assert_eq!(path[0].read().unwrap().key, "grandchild1".to_string());
-    //     assert_eq!(path[1].read().unwrap().key, "child1".to_string());
-    //     assert_eq!(path[2].read().unwrap().key, "root".to_string());
+        let target_path = PathBuf::from("/dir0/dir1/dir2/dir3/file3");
+        // 获取从叶节点到根的路径
+        let node = tree.get_node(&target_path);
+        assert!(node.is_some());
 
-    //     // 获取从根节点到根的路径
-    //     let path = tree.path_to_root(&"root".to_string());
-    //     assert_eq!(path.len(), 1);
-    //     assert_eq!(path[0].read().unwrap().key, "root".to_string());
-
-    //     // 获取不存在节点的路径
-    //     let path = tree.path_to_root(&"non_existent".to_string());
-    //     assert_eq!(path.len(), 0);
-    // }
-
-    // // 测试获取节点
-    // #[test]
-    // fn test_get_node() {
-    //     let mut tree: Tree<String, i32> = Tree::from_value("root".to_string(), 100);
-    //     tree.insert(&"root".to_string(), "child1".to_string(), 101)
-    //         .unwrap();
-
-    //     // 获取存在的节点
-    //     let node = tree.get_node(&"child1".to_string());
-    //     assert!(node.is_some());
-    //     assert_eq!(node.unwrap().read().unwrap().key, "child1".to_string());
-
-    //     // 获取不存在的节点
-    //     let node = tree.get_node(&"non_existent".to_string());
-    //     assert!(node.is_none());
-    // }
+        let path = tree.path_to_root(&node.unwrap()).unwrap();
+        assert_eq!(path, target_path);
+    }
 
     // // 测试节点值的访问
     // #[test]
@@ -369,28 +373,5 @@ mod tests {
     //     }
 
     //     assert_eq!(node_ref.read().unwrap().get_value(), &100);
-    // }
-
-    // 测试节点父子关系
-    // #[test]
-    // fn test_node_parent_child_relationship() {
-    //     let mut tree: Tree<String, i32> = Tree::from_value("root".to_string(), 100);
-    //     let child = tree
-    //         .insert(&"root".to_string(), "child1".to_string(), 101)
-    //         .unwrap();
-
-    //     // 验证父节点关系
-    //     assert!(child.read().unwrap().get_parent().is_some());
-    //     assert_eq!(
-    //         child
-    //             .read()
-    //             .unwrap()
-    //             .get_parent()
-    //             .unwrap()
-    //             .read()
-    //             .unwrap()
-    //             .key,
-    //         "root".to_string()
-    //     );
     // }
 }
