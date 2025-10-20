@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, VecDeque},
+    ffi::{OsStr, OsString},
     fmt::{Debug, Display},
     path::PathBuf,
     ptr::eq,
@@ -7,11 +8,14 @@ use std::{
     thread::panicking,
 };
 
-use crate::{service::FileNode, tree::RootIter};
-
 #[derive(Debug)]
 pub struct Node {
-    value: FileNode,                    //current file node info
+    pub path: OsString,
+    pub size: usize,
+    pub is_directory: bool,
+    pub is_link: bool,
+    pub modified: Option<u64>,
+    pub created: Option<u64>,
     pub(crate) count: usize,            //total count of all sub nodes
     pub(crate) children: Vec<NodeRef>,  //all files and dirs in this node
     pub(crate) parent: Option<NodeRef>, //parent node reference
@@ -26,9 +30,28 @@ pub enum UpdateMode {
 }
 
 impl Node {
-    pub fn new(value: FileNode) -> Node {
+    pub fn new(path: OsString, is_dir: bool, is_link: bool) -> Node {
         Node {
-            value,
+            path: path,
+            size: 0,
+            is_directory: is_dir,
+            is_link: is_link,
+            modified: None,
+            created: None,
+            count: 0, //self is the first one
+            children: Vec::new(),
+            parent: None,
+        }
+    }
+
+    fn from(node: &Node) -> Node {
+        Node {
+            path: node.path.clone(),
+            size: node.size,
+            is_directory: node.is_directory,
+            is_link: node.is_link,
+            modified: node.modified,
+            created: node.created,
             count: 0, //self is the first one
             children: Vec::new(),
             parent: None,
@@ -49,7 +72,7 @@ impl Node {
         let position = self
             .children
             .iter()
-            .position(|item| item.read().unwrap().value.path == *key);
+            .position(|item| item.read().unwrap().path == *key);
 
         println!("queue item position {:?}", position);
         let mut elems: Vec<NodeRef> = vec![];
@@ -79,20 +102,15 @@ impl Node {
         self.count + 1
     }
 
-    pub fn get_value(&self) -> &FileNode {
-        &self.value
-    }
-
     pub fn get_name(&self) -> Result<String, String> {
-        self.value
-            .path
+        self.path
             .clone()
             .into_string()
             .map_err(|err| err.to_string_lossy().into_owned())
     }
 
     pub fn get_path(&self) -> PathBuf {
-        PathBuf::from(self.value.path.clone())
+        PathBuf::from(self.path.clone())
     }
 
     pub fn get_parent(&self) -> Option<NodeRef> {
@@ -101,14 +119,6 @@ impl Node {
 
     pub fn clear(&mut self) {
         self.children.clear();
-    }
-
-    pub fn update<'a, F>(&mut self, mut modify: F)
-    where
-        F: FnMut(&mut FileNode),
-    {
-        let value = &mut self.value;
-        modify(value);
     }
 }
 
@@ -121,7 +131,7 @@ impl Drop for Node {
 
 impl PartialEq for Node {
     fn eq(&self, other: &Self) -> bool {
-        self.value.path == other.value.path
+        self.path == other.path
     }
 
     fn ne(&self, other: &Self) -> bool {
@@ -142,9 +152,8 @@ mod tests {
     #[test]
     fn test_node_creation() {
         let path = PathBuf::from("/test");
-        let fileNode = FileNode::new(path.clone().into_os_string(), false, false);
-        let node = Node::new(fileNode);
-        assert_eq!(node.value.path, path);
+        let node = Node::new(path.clone().into_os_string(), false, false);
+        assert_eq!(node.path, path);
         assert_eq!(node.get_name(), Ok(String::from("/test")));
         assert_eq!(node.count, 0);
     }
@@ -152,35 +161,25 @@ mod tests {
     #[test]
     fn test_node_insert() {
         let path = PathBuf::from("/root");
-        let fileNode = FileNode::new(path.clone().into_os_string(), false, false);
-        let mut node = Node::new(fileNode);
+        let mut fileNode = Node::new(path.clone().into_os_string(), false, false);
 
         let child_path = PathBuf::from("/root/child");
-        let child_node = Node::new(FileNode::new(
-            child_path.clone().into_os_string(),
-            false,
-            false,
-        ));
-        node.add_child(child_node);
+        let child_node = Node::new(child_path.clone().into_os_string(), false, false);
+        fileNode.add_child(child_node);
 
-        assert_eq!(node.count, 1);
+        assert_eq!(fileNode.count, 1);
     }
 
     //text multi nodes insert
     #[test]
     fn test_nodes_insert() {
         let path = PathBuf::from("/root");
-        let fileNode = FileNode::new(path.clone().into_os_string(), false, false);
-        let mut node = Node::new(fileNode);
+        let mut node = Node::new(path.clone().into_os_string(), false, false);
 
         let files = vec!["file1.txt", "file2.txt", "file3.txt"];
         for name in files {
             let child_path = path.clone().join(name);
-            let child_node = Node::new(FileNode::new(
-                child_path.clone().into_os_string(),
-                false,
-                false,
-            ));
+            let child_node = Node::new(child_path.clone().into_os_string(), false, false);
             node.add_child(child_node);
         }
 
@@ -201,29 +200,20 @@ mod tests {
     }
 
     fn create_nodes(mut root: PathBuf) -> Node {
-        let fileNode = FileNode::new(root.clone().into_os_string(), false, false);
-        let mut node = Node::new(fileNode);
+        let mut node = Node::new(root.clone().into_os_string(), false, false);
         let files = vec!["file1.txt", "file2.txt", "file3.txt"];
         for name in files {
             let child_path = root.clone().join(name);
-            let child_node = Node::new(FileNode::new(
-                child_path.clone().into_os_string(),
-                false,
-                false,
-            ));
+            let child_node = Node::new(child_path.clone().into_os_string(), false, false);
             node.add_child(child_node);
         }
 
         root.push("dir1");
-        let mut sub_node = Node::new(FileNode::new(root.clone().into_os_string(), false, false));
+        let mut sub_node = Node::new(root.clone().into_os_string(), false, false);
         let files = vec!["file1.bin", "file2.bin", "file3.bin"];
         for name in files {
             let child_path = root.clone().join(name);
-            let child_node = Node::new(FileNode::new(
-                child_path.clone().into_os_string(),
-                false,
-                false,
-            ));
+            let child_node = Node::new(child_path.clone().into_os_string(), false, false);
             sub_node.add_child(child_node);
         }
         node.add_child(sub_node);

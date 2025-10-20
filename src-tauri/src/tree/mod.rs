@@ -22,18 +22,13 @@ pub struct Tree {
 }
 
 impl Tree {
-    pub fn from_value(value: FileNode) -> Tree {
-        let node = Node::new(value);
-        Self::from_node(node)
-    }
-
     pub fn from_node(node: Node) -> Tree {
         let node = Arc::new(RwLock::new(node));
         Tree { root: Some(node) }
     }
 
-    pub fn insert(&mut self, parent: &PathBuf, value: FileNode) -> Result<NodeRef, String> {
-        self.insert_node(parent, Node::new(value))
+    pub fn insert(&mut self, parent: &PathBuf, value: Node) -> Result<NodeRef, String> {
+        self.insert_node(parent, value)
     }
 
     pub fn insert_node(&mut self, parent: &PathBuf, value: Node) -> Result<NodeRef, String> {
@@ -72,7 +67,7 @@ impl Tree {
                 .map_or(Err(format!("key:{} not found", key.display())), |node| {
                     println!(
                         "item on remove , target:{}",
-                        node.read().unwrap().get_value().path.display()
+                        node.read().unwrap().path.display()
                     );
                     Ok(node)
                 })?;
@@ -81,11 +76,9 @@ impl Tree {
             && let Some(parent) = node.parent.as_ref()
             && let Ok(mut parent) = parent.write()
         {
-            parent.children.retain(|child| {
-                child.read().map_or(true, |child| {
-                    child.get_value().path != node.get_value().path
-                })
-            });
+            parent
+                .children
+                .retain(|child| child.read().map_or(true, |child| child.path != node.path));
         } else {
             return Err(format!("remove from parent failed"));
         }
@@ -104,7 +97,7 @@ impl Tree {
         Ok(target)
     }
 
-    fn trace_to_root<'a, F>(&mut self, node: &NodeRef, mut modify: F)
+    pub fn trace_to_root<'a, F>(&mut self, node: &NodeRef, mut modify: F)
     where
         F: FnMut(&NodeRef),
     {
@@ -115,6 +108,10 @@ impl Tree {
             let parent = node.read().map_or(None, |node| node.parent.clone());
             if let Some(parent) = parent {
                 modify(&parent)
+            } else {
+                // Handle the case when there is no parent
+                // For example, you can log a message or do nothing
+                // Here, we'll log a message
             }
         }
     }
@@ -123,7 +120,7 @@ impl Tree {
         return self.get_node(key).is_some();
     }
 
-    pub fn path_to_root(&self, node: &NodeRef) -> Result<PathBuf, String> {
+    pub fn path_to_root(node: &NodeRef) -> Result<PathBuf, String> {
         let mut path =
             node.read().map_or(
                 Err("Node not found".to_string()),
@@ -167,7 +164,7 @@ impl Tree {
                     .find(|child| {
                         child
                             .read()
-                            .map(|node| node.get_value().path == path.as_os_str())
+                            .map(|node| node.path == path.as_os_str())
                             .is_ok_and(|result| result)
                     })
                     .map(|node| node.clone());
@@ -224,18 +221,18 @@ mod tests {
     fn build_test_tree() -> Tree {
         // create root node
         let root_path = PathBuf::from("/");
-        let root_file = FileNode::new(root_path.clone().into_os_string(), true, false);
-        let mut tree: Tree = Tree::from_value(root_file);
+        let root_file = Node::new(root_path.clone().into_os_string(), true, false);
+        let mut tree: Tree = Tree::from_node(root_file);
         //
         let paths: Vec<String> = (0..10).map(|i| format!("dir{}", i)).collect();
         let mut current_path = root_path.clone();
         for dir_name in &paths {
             println!("current:{}, new:{}", current_path.display(), dir_name);
-            let dir_node = FileNode::new(OsString::from(dir_name.clone()), true, false);
+            let dir_node = Node::new(OsString::from(dir_name.clone()), true, false);
 
             for i in 0..10 {
                 let file_name = format!("file{}", i);
-                let file_node = FileNode::new(OsString::from(file_name), false, false);
+                let file_node = Node::new(OsString::from(file_name), false, false);
                 let _ = tree.insert(&current_path, file_node);
             }
 
@@ -249,16 +246,16 @@ mod tests {
     #[test]
     fn test_tree_creation() {
         let path = PathBuf::from("/");
-        let file = FileNode::new(path.clone().into_os_string(), true, false);
+        let file = Node::new(path.clone().into_os_string(), true, false);
         // 从值创建树
-        let mut tree: Tree = Tree::from_value(file);
+        let mut tree: Tree = Tree::from_node(file);
         assert!(tree.root.is_some());
         assert_eq!(tree.size(), 1);
         assert!(tree.contains(&path));
 
         // 从节点创建树
         let file_path1 = PathBuf::from("File1.txt");
-        let file1 = FileNode::new(file_path1.clone().into_os_string(), false, false);
+        let file1 = Node::new(file_path1.clone().into_os_string(), false, false);
         let _ = tree.insert(&path, file1);
         assert_eq!(tree.size(), 2);
         assert!(tree.contains(&PathBuf::from("/File1.txt")));
@@ -289,7 +286,7 @@ mod tests {
         let before_count = tree.size();
         // 插入子节点
         let file1_path = PathBuf::from("File2.txt");
-        let file1 = FileNode::new(file1_path.clone().into_os_string(), false, false);
+        let file1 = Node::new(file1_path.clone().into_os_string(), false, false);
         let result = tree.insert(&PathBuf::from("/"), file1);
         assert!(result.is_ok());
         assert_eq!(tree.size(), before_count + 1);
@@ -298,7 +295,7 @@ mod tests {
         let before_count = tree.size();
         // 插入到不存在的父节点
         let file2_path = PathBuf::from("File3.txt");
-        let file2 = FileNode::new(file2_path.clone().into_os_string(), false, false);
+        let file2 = Node::new(file2_path.clone().into_os_string(), false, false);
         let result = tree.insert(&PathBuf::from("nofile"), file2);
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), "parent not found, nofile".to_string());
@@ -350,7 +347,7 @@ mod tests {
         let node = tree.get_node(&target_path);
         assert!(node.is_some());
 
-        let path = tree.path_to_root(&node.unwrap()).unwrap();
+        let path = Tree::path_to_root(&node.unwrap()).unwrap();
         assert_eq!(path, target_path);
     }
 

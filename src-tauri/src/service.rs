@@ -6,11 +6,10 @@ use std::{
     fs::Metadata,
     path::{Component, PathBuf},
     sync::{
-        Arc, RwLock,
+        Arc, Mutex, RwLock,
         atomic::{AtomicUsize, Ordering},
     },
 };
-use tokio::sync::Mutex;
 use tokio::{
     fs,
     sync::mpsc::{self, Sender},
@@ -18,7 +17,10 @@ use tokio::{
 };
 use tracing::{debug, error, info, warn};
 
-use crate::{model::FileDetails, tree::Tree, tree::node::Node};
+use crate::{
+    model::FileDetails,
+    tree::{self, Tree, node::Node},
+};
 
 #[derive(Debug, Clone)]
 pub struct FileNode {
@@ -70,7 +72,7 @@ impl ScanProgress {
     }
 }
 
-type FileTree = Arc<Tree>;
+type FileTree = Arc<RwLock<Tree>>;
 type TreeNode = Arc<RwLock<Node>>;
 
 pub struct Scanner {
@@ -91,11 +93,11 @@ impl Scanner {
     pub fn new(concurrency: usize) -> Self {
         Self {
             queue: Arc::new(Mutex::new(VecDeque::new())),
-            files: Arc::new(Tree::from_value(FileNode::new(
+            files: Arc::new(RwLock::new(Tree::from_node(Node::new(
                 OsString::from("/"),
                 true,
                 false,
-            ))),
+            )))),
             workers: Vec::new(),
             concurrency: concurrency,
             progress: Arc::new(Mutex::new(ScanProgress {
@@ -116,16 +118,16 @@ impl Scanner {
         self.workers.clear();
 
         // Process root node to provide initial queue items
+        if let Ok(files) = self.files.read()
+            && let Ok(mut queue) = self.queue.lock()
         {
-            let mut queue = self.queue.lock().await;
-            let files = self.files.clone();
             if let Some(root) = files.root.as_ref() {
-                let mut prog = self.progress.lock().await;
-                if let Ok(node) = root.read() {
-                    let file = node.get_value();
+                if let Ok(node) = root.read()
+                    && let Ok(mut prog) = self.progress.lock()
+                {
                     let path = node.get_path();
                     prog.current_path = Some(path);
-                    prog.scaned_size = file.size;
+                    prog.scaned_size = node.size;
                     prog.is_scanning = true;
                     queue.push_back(root.clone());
                 } else {
@@ -136,63 +138,46 @@ impl Scanner {
             };
         }
 
-        let finish_count = Arc::new(AtomicUsize::new(self.concurrency));
+        let counter = Arc::new(AtomicUsize::new(0));
 
         for worker_id in 0..self.concurrency {
             let queue = Arc::clone(&self.queue);
-            let tree = Arc::clone(&self.files);
+            let tree = self.files.clone();
             let tx = tx.clone();
-            let progress = Arc::clone(&self.progress);
-            let finish_count = finish_count.clone();
+            let counter = Arc::clone(&counter);
+            let interval = tokio::time::Duration::from_millis(50);
 
             let worker = tokio::spawn(async move {
                 debug!("Worker {} started", worker_id);
-                let _max_count = 100000;
-                // let _max_count = i32::MAX;
-                let mut count = 0;
+                let tree = tree.clone();
 
                 loop {
-                    if count >= _max_count {
-                        break;
-                    }
-
-                    count += 1;
-
                     // Create a new scope for queue lock to ensure it's released before processing
-                    let item = {
-                        let mut queue = queue.lock().await;
-                        queue.pop_front()
-                    };
+                    let item = queue.lock().map_or(None, |mut queue| queue.pop_front());
+                    let pendding_size = counter.fetch_sub(1, Ordering::Relaxed);
+                    if pendding_size > 20 {
+                        debug!("pending size is too large, size: {}", pendding_size);
+                    }
 
-                    match item {
-                        Some(item) => {
-                            // Process the item with all locks released
-                            if let Err(e) =
-                                Self::process_scan_item(&tree, item, &queue, &tx, &progress).await
-                            {
-                                warn!("Error processing item: {}", e);
-                            }
+                    if let Some(item) = item
+                        && let Some(children) = Self::process_scan_item(&item).await
+                    {
+                        let progress = Self::update_parent_size(&tree, &item).await;
+                        if let Ok(progress) = progress {
+                            // let _ = tx.send(progress).await;
+                        } else {
+                            warn!("update parent size failed");
                         }
-                        None => {
-                            if Self::should_exit_scan(&queue).await {
-                                debug!("Worker {} exiting", worker_id);
-                                break;
-                            }
-                            debug!("Worker try to wait next job");
-                            tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-                        }
+
+                        counter.fetch_add(children.len(), Ordering::Relaxed);
+                        let _ = queue.lock().map(|mut queue| {
+                            queue.extend(children);
+                        });
+                    } else {
+                        debug!("Worker try to wait next job");
+                        tokio::time::sleep(interval).await;
                     }
                 }
-
-                // Worker finished - update progress in a separate scope
-                {
-                    let mut prog = progress.lock().await;
-                    prog.is_scanning = false;
-                    prog.current_path = None;
-                }
-
-                let count = finish_count.fetch_sub(1, Ordering::Relaxed);
-                debug!("current running workers {}", count - 1);
             });
 
             self.workers.push(worker);
@@ -205,7 +190,7 @@ impl Scanner {
         info!("Stopping scan...");
 
         // Clear the queue
-        self.queue.lock().await.clear();
+        let _ = self.queue.lock().map(|mut queue| queue.clear());
 
         // Abort all workers
         for worker in &self.workers {
@@ -214,49 +199,33 @@ impl Scanner {
         self.workers.clear();
 
         // Reset progress
-        let mut prog = self.progress.lock().await;
-        prog.is_scanning = false;
-        prog.current_path = None;
+        let _ = self.progress.lock().map(|mut prog| {
+            prog.is_scanning = false;
+            prog.current_path = None;
+        });
     }
 
-    async fn process_scan_item(
-        tree: &FileTree,
-        item: TreeNode,
-        queue: &Arc<Mutex<VecDeque<TreeNode>>>,
-        tx: &Sender<ScanProgress>,
-        progress: &Arc<Mutex<ScanProgress>>,
-    ) -> Result<(), String> {
+    async fn process_scan_item(item: &TreeNode) -> Option<Vec<TreeNode>> {
         let inserted = item;
 
-        let path = inserted
-            .read()
-            .map(|node| node.get_value().path.clone())
-            .map_err(|err| format!("Failed to read tree node: {}", err))?;
-
-        let is_directory = inserted
-            .read()
-            .map(|node| node.get_value().is_directory)
-            .map_err(|err| format!("Failed to read tree node: {}", err))?;
+        let is_directory = inserted.read().is_ok_and(|node| node.is_directory);
 
         if is_directory {
-            Self::process_directory(inserted.clone(), queue).await?;
-            Self::update_parent_size(inserted.clone());
-            //just update directory
-            if let Some(root) = Self::_get_file_node(tree, &PathBuf::from("/")).await {
-                debug!("try to nofity files update");
-                let _ = Self::notify_stats(root, &tx, &progress).await;
+            let path = Tree::path_to_root(&inserted).ok()?;
+            if path == PathBuf::from("//System/Volumes/Data") {
+                None
+            } else {
+                let children = Self::process_directory(path, inserted).await;
+                children.ok()
             }
+        } else {
+            None
         }
-
-        debug!("process scan item, path: {:?}", path);
-        Ok(())
     }
 
     async fn should_exit_scan(queue: &Arc<Mutex<VecDeque<TreeNode>>>) -> bool {
-        let queue_size = queue.lock().await.len();
+        let queue_size = queue.lock().map_or(0, |queue| queue.len());
         debug!("should exit scan size:{}", queue_size);
-
-        // Exit if queue is empty and we're not actively scanning
         queue_size == 0
     }
 
@@ -266,7 +235,7 @@ impl Scanner {
      * @param metadata
      * @return
      */
-    fn obtain_file_node(path: PathBuf, metadata: &Metadata) -> FileNode {
+    fn obtain_file_node(name: OsString, metadata: &Metadata) -> Node {
         let modified = metadata
             .modified()
             .ok()
@@ -279,51 +248,24 @@ impl Scanner {
             .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
             .map(|d| d.as_secs());
 
-        FileNode {
-            path: path.into_os_string(),
+        Node {
+            path: name,
             size: metadata.len() as usize,
             is_directory: metadata.is_dir(),
             is_link: metadata.is_symlink(),
             modified,
             created,
+            count: 0, //self is the first one
+            children: Vec::new(),
+            parent: None,
         }
-    }
-
-    async fn notify_stats(
-        node: FileNode,
-        tx: &Sender<ScanProgress>,
-        progress: &Arc<Mutex<ScanProgress>>,
-    ) -> std::io::Result<()> {
-        // Update progress
-        let mut prog = progress.lock().await;
-        prog.scaned_files += 1;
-        prog.scaned_size = node.size;
-        let mut new_progress = prog.clone();
-        new_progress.current_path = Some(PathBuf::from(node.path.clone()));
-
-        // Send update through channel
-        if let Err(e) = tx.send(new_progress).await {
-            error!("Error sending stats update: {}", e);
-        }
-        debug!("notify files info, path: {:?}", node);
-
-        Ok(())
     }
 
     async fn process_directory(
-        dir_node: TreeNode,
-        queue: &Arc<Mutex<VecDeque<TreeNode>>>,
-    ) -> Result<(), String> {
-        let dir_path = {
-            dir_node
-                .write()
-                .map(|node| node.get_path().clone())
-                .map_err(|err| err.to_string())
-        }?;
-
-        debug!("enter process_directory, path: {:?}", dir_path.display());
-
-        let mut entries = match fs::read_dir(dir_path.clone()).await {
+        dir_path: PathBuf,
+        dir_node: &TreeNode,
+    ) -> Result<Vec<TreeNode>, String> {
+        let mut entries = match fs::read_dir(dir_path).await {
             Ok(entries) => entries,
             Err(e) => return Err(format!("{:?}", e)),
         };
@@ -335,14 +277,16 @@ impl Scanner {
             let file_type = entry.file_type().await;
 
             if let (Ok(file_type), Ok(metadata)) = (file_type, metadata) {
-                let mut path = dir_path.clone();
-                path.push(entry.path()); //full path for file node
-
-                let file_node = Self::obtain_file_node(path.clone(), &metadata);
+                let file_node = Self::obtain_file_node(entry.file_name(), &metadata);
 
                 let node = dir_node.write().map(|mut node| {
-                    node.update(|node| node.size += file_node.size);
-                    node.add_child(Node::new(file_node))
+                    node.size += file_node.size;
+
+                    let new_node = node.add_child(file_node);
+                    let _ = new_node.write().map(|mut node| {
+                        node.parent = Some(dir_node.clone());
+                    });
+                    new_node
                 });
 
                 match (node, file_type.is_dir()) {
@@ -355,74 +299,52 @@ impl Scanner {
         }
 
         // Add all children to queue at once
-        if !children.is_empty() {
-            debug!(
-                "add {} children to scan queue for {}",
-                children.len(),
-                dir_path.display()
-            );
-            let mut queue = queue.lock().await;
-            queue.extend(children);
-        }
-        Ok(())
+        Ok(children)
     }
 
     /**
      * update parent size from current node
      */
-    fn update_parent_size(node: TreeNode) {
-        if let Ok(node) = node.read() {
-            let new_size = node.get_value().size;
-            debug!(
-                "update parent sizes, key:{:?}, size:{:?}",
-                node.get_name(),
-                new_size
-            );
-            let mut item = node.get_parent();
-            while let Some(parent) = item {
-                if let Ok(mut value) = parent.write() {
-                    value.update(|node| node.size += new_size);
-                    item = value.get_parent();
-                } else {
-                    item = None;
-                }
-            }
+    async fn update_parent_size(tree: &FileTree, node: &TreeNode) -> Result<ScanProgress, String> {
+        let new_size = node
+            .read()
+            .map_or(Err("file node value fetch failed"), |node| Ok(node.size))?;
+
+        tree.write()
+            .map_or(Err("Tree not found".to_string()), |mut tree| {
+                tree.trace_to_root(&node, |parent| {
+                    let _ = parent.write().map(|mut node| node.size += new_size);
+                });
+                Ok(())
+            })?;
+
+        if let Some(root) = tree.read().map_or(None, |tree| tree.root.clone())
+            && let Ok(root) = root.read()
+            && let Ok(node) = node.read()
+        {
+            Ok(ScanProgress {
+                scaned_files: root.count,
+                scaned_size: root.size,
+                current_path: Some(node.get_path()),
+                is_scanning: true,
+            })
         } else {
-            warn!("-------------update parent sizes lock failed---------------");
+            Err("Root node not found".to_string())
         }
-    }
-
-    async fn _get_file_node(tree: &FileTree, path: &PathBuf) -> Option<FileNode> {
-        let result = tree.get_node(path).map_or(None, |node| {
-            node.read()
-                .map(|node| FileNode::from(node.get_value()))
-                .ok()
-        });
-
-        debug!("get file node for {:?}", path.display());
-        result
     }
 
     pub async fn get_file_node(&self, path: &PathBuf) -> Option<FileDetails> {
         debug!("enter get file node for {:?}", path.display());
-
-        let node = self.files.get_node(path).or_else(|| {
-            debug!("get file node failed, node not found");
-            None
-        })?;
+        let node = self.files.read().map_or(None, |node| node.get_node(path))?;
 
         let ret = node
             .read()
             .and_then(|node| {
-                let mut current = FileDetails::from(node.get_value().clone());
+                let mut current = FileDetails::from(&node);
                 let sub_files = node.children.iter();
                 debug!("sub files count:{}", node.children.len());
                 let mut childrens = sub_files
-                    .filter_map(|node| {
-                        node.read()
-                            .map(|node| FileDetails::from(node.get_value().clone()))
-                            .ok()
-                    })
+                    .filter_map(|node| node.read().map(|node| FileDetails::from(&node)).ok())
                     .collect::<Vec<_>>();
 
                 childrens.sort_by(|a, b| b.size.cmp(&a.size));
@@ -436,26 +358,29 @@ impl Scanner {
         ret
     }
 
-    pub async fn get_progress(&self) -> ScanProgress {
-        self.progress.lock().await.clone()
+    pub async fn get_progress(&self) -> Result<ScanProgress, String> {
+        self.progress
+            .lock()
+            .map_or(Err("Progress not initialized".to_string()), |prog| {
+                Ok(prog.clone())
+            })
     }
 
     pub async fn clear(&mut self) {
         debug!("clear scaner data");
         self.stop_scanning().await;
-        self.queue.lock().await.clear();
-        self.files = Arc::new(Tree::from_value(FileNode::new(
+        let _ = self.queue.lock().map(|mut node| node.clear());
+        self.files = Arc::new(RwLock::new(Tree::from_node(Node::new(
             PathBuf::from("/").into_os_string(),
             true,
             false,
-        )));
+        ))));
 
-        let mut progress = self.progress.lock().await;
-        progress.reset();
+        let _ = self.progress.lock().map(|mut prog| prog.reset());
     }
 
     pub async fn is_scanning(&self) -> bool {
-        self.progress.lock().await.is_scanning
+        self.progress.lock().is_ok_and(|prog| prog.is_scanning)
     }
 }
 

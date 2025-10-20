@@ -2,7 +2,7 @@ use std::{fs::FileType, path::PathBuf};
 
 use serde::Serialize;
 
-use crate::service::FileNode;
+use crate::{service::FileNode, tree::node::Node};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -19,8 +19,8 @@ pub struct FileDetails {
 }
 
 impl FileDetails {
-    pub fn from(stat: FileNode) -> FileDetails {
-        let path = stat.path;
+    pub fn from(stat: &Node) -> FileDetails {
+        let path = stat.path.clone();
 
         FileDetails {
             name: path.to_string_lossy().into_owned(),

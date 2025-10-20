@@ -1,7 +1,7 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 use std::path::{Path, PathBuf};
-use tauri::{command, State};
 use tauri::{Emitter, Manager};
+use tauri::{State, command};
 use tokio::sync::Mutex;
 use tracing::{debug, info};
 
@@ -65,7 +65,7 @@ async fn get_folder_stats(
 #[command]
 async fn get_scan_progress(state: State<'_, Mutex<Scanner>>) -> Result<ScanProgress, String> {
     let scanner = state.lock().await;
-    Ok(scanner.get_progress().await)
+    scanner.get_progress().await
 }
 
 #[command]
@@ -91,7 +91,7 @@ async fn clear_folder_scan(state: State<'_, Mutex<Scanner>>) -> Result<(), Strin
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let scanner = Scanner::new(1); // 3 concurrent workers
+    let scanner = Scanner::new(20); // 3 concurrent workers
 
     let app = tauri::Builder::default()
         .manage(Mutex::new(scanner))
